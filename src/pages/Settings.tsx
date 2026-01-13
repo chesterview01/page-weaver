@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FolderOpen, Bot, Settings2, Trash2, ExternalLink, Edit2, Save } from 'lucide-react';
+import { ArrowLeft, FolderOpen, Bot, Settings2, Trash2, ExternalLink, Save, Globe, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,9 +8,9 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useSettings } from '@/hooks/useSettings';
 import { useProjects } from '@/hooks/useProjects';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -20,6 +20,8 @@ const Settings = () => {
   const [customApiUrl, setCustomApiUrl] = useState(settings?.custom_api_url || '');
   const [customApiKey, setCustomApiKey] = useState(settings?.custom_api_key || '');
   const [isTesting, setIsTesting] = useState(false);
+  const [customDomain, setCustomDomain] = useState('');
+  const [domainStatus, setDomainStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle');
 
   React.useEffect(() => {
     if (settings) {
@@ -43,6 +45,24 @@ const Settings = () => {
     });
   };
 
+  const validateDomain = (domain: string) => {
+    const domainRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+    return domainRegex.test(domain);
+  };
+
+  const handleValidateDomain = () => {
+    if (!customDomain) return;
+    setDomainStatus('validating');
+    // Simulate validation
+    setTimeout(() => {
+      if (validateDomain(customDomain)) {
+        setDomainStatus('valid');
+      } else {
+        setDomainStatus('invalid');
+      }
+    }, 1000);
+  };
+
   if (settingsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -56,7 +76,7 @@ const Settings = () => {
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/app')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-xl font-semibold text-foreground">Ajustes</h1>
@@ -65,18 +85,22 @@ const Settings = () => {
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <Tabs defaultValue="projects" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 bg-card">
+          <TabsList className="grid w-full grid-cols-4 bg-card">
             <TabsTrigger value="projects" className="flex items-center gap-2">
               <FolderOpen className="h-4 w-4" />
-              Mis Proyectos
+              <span className="hidden sm:inline">Mis Proyectos</span>
             </TabsTrigger>
             <TabsTrigger value="ai" className="flex items-center gap-2">
               <Bot className="h-4 w-4" />
-              Cambiar IA
+              <span className="hidden sm:inline">Cambiar IA</span>
+            </TabsTrigger>
+            <TabsTrigger value="domain" className="flex items-center gap-2">
+              <Globe className="h-4 w-4" />
+              <span className="hidden sm:inline">Dominio</span>
             </TabsTrigger>
             <TabsTrigger value="preferences" className="flex items-center gap-2">
               <Settings2 className="h-4 w-4" />
-              Preferencias
+              <span className="hidden sm:inline">Preferencias</span>
             </TabsTrigger>
           </TabsList>
 
@@ -124,7 +148,7 @@ const Settings = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => navigate(`/?project=${project.id}`)}
+                            onClick={() => navigate(`/app?project=${project.id}`)}
                             title="Abrir proyecto"
                           >
                             <ExternalLink className="h-4 w-4" />
@@ -211,6 +235,117 @@ const Settings = () => {
                       <Save className="h-4 w-4 mr-2" />
                       Guardar configuración
                     </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Domain Tab */}
+          <TabsContent value="domain" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Dominio Personalizado</CardTitle>
+                <CardDescription>
+                  Configura tu propio dominio para publicar tus proyectos. Si no configuras ninguno, 
+                  se usará el dominio por defecto de Chester Code IA.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Información importante</AlertTitle>
+                  <AlertDescription>
+                    Para usar un dominio personalizado, necesitas configurar los registros DNS en tu proveedor de dominios.
+                    Añade un registro A apuntando a nuestra IP y un registro TXT para verificación.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="custom-domain">Tu dominio</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="custom-domain"
+                        placeholder="miproyecto.com"
+                        value={customDomain}
+                        onChange={(e) => {
+                          setCustomDomain(e.target.value);
+                          setDomainStatus('idle');
+                        }}
+                      />
+                      <Button 
+                        variant="outline" 
+                        onClick={handleValidateDomain}
+                        disabled={!customDomain || domainStatus === 'validating'}
+                      >
+                        {domainStatus === 'validating' ? 'Validando...' : 'Validar'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {domainStatus === 'valid' && (
+                    <Alert className="border-green-500/50 bg-green-500/10">
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <AlertTitle className="text-green-500">Dominio válido</AlertTitle>
+                      <AlertDescription>
+                        El formato del dominio es correcto. Configura los siguientes registros DNS:
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {domainStatus === 'invalid' && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Dominio inválido</AlertTitle>
+                      <AlertDescription>
+                        El formato del dominio no es válido. Ejemplo correcto: miproyecto.com
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {domainStatus === 'valid' && (
+                    <div className="space-y-4 p-4 rounded-lg bg-muted/50 border border-border">
+                      <h4 className="font-medium">Configuración DNS requerida:</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="grid grid-cols-3 gap-2 p-2 bg-background rounded">
+                          <span className="font-mono text-muted-foreground">Tipo</span>
+                          <span className="font-mono text-muted-foreground">Nombre</span>
+                          <span className="font-mono text-muted-foreground">Valor</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 p-2 bg-background rounded">
+                          <span className="font-mono">A</span>
+                          <span className="font-mono">@</span>
+                          <span className="font-mono">185.158.133.1</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 p-2 bg-background rounded">
+                          <span className="font-mono">A</span>
+                          <span className="font-mono">www</span>
+                          <span className="font-mono">185.158.133.1</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 p-2 bg-background rounded">
+                          <span className="font-mono">TXT</span>
+                          <span className="font-mono">_lovable</span>
+                          <span className="font-mono text-xs">lovable_verify=abc123</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        La propagación DNS puede tardar hasta 72 horas. El SSL se configurará automáticamente.
+                      </p>
+                      <Button className="w-full">
+                        <Globe className="h-4 w-4 mr-2" />
+                        Conectar dominio
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-border">
+                  <h4 className="font-medium mb-2">Dominio actual</h4>
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border">
+                    <Globe className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-mono">tuproyecto.chestercode.ia</span>
+                    <span className="ml-auto text-xs px-2 py-0.5 rounded bg-primary/20 text-primary">Por defecto</span>
                   </div>
                 </div>
               </CardContent>

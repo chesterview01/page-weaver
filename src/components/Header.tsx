@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Settings, ExternalLink, LogIn, LogOut, Coins, CreditCard, User } from 'lucide-react';
+import { Code2, Settings, ExternalLink, LogIn, LogOut, Coins, CreditCard, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -10,7 +10,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import AuthModal from '@/components/AuthModal';
 import ExportDropdown from '@/components/ExportDropdown';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -37,12 +36,12 @@ const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode, currentCode, pr
     <>
       <header className="flex items-center justify-between h-14 px-4 border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-9 h-9 rounded-xl gradient-primary shadow-glow">
-            <Zap className="w-5 h-5 text-primary-foreground" />
+          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg">
+            <Code2 className="w-5 h-5 text-primary-foreground" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-foreground tracking-tight">
-              WebBuilder<span className="text-primary">AI</span>
+              Chester Code <span className="text-primary">IA</span>
             </h1>
           </div>
         </div>
