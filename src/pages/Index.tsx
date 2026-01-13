@@ -75,23 +75,6 @@ const Index = () => {
       <main className="flex-1 flex overflow-hidden">
         {/* Left Column - Chat */}
         <div className="w-full md:w-[400px] lg:w-[450px] flex flex-col border-r border-border bg-card/30">
-          {!isAuthenticated && (
-            <div className="p-4 border-b border-border bg-muted/30">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Inicia sesión para usar el chat
-                </p>
-                <Button 
-                  size="sm" 
-                  onClick={() => setShowAuthPrompt(true)}
-                  className="gap-2"
-                >
-                  <LogIn className="w-4 h-4" />
-                  Iniciar sesión
-                </Button>
-              </div>
-            </div>
-          )}
           <ChatPanel
             messages={messages}
             isLoading={isLoading}

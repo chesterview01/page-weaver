@@ -1,22 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Code2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 interface AuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultTab?: 'login' | 'register';
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange, defaultTab = 'login' }) => {
   const { signIn, signUp, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [activeTab, setActiveTab] = useState(defaultTab);
+
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,12 +52,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onOpenChange }) => {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
-          <DialogTitle className="text-center text-xl">
-            Bienvenido a WebBuilder<span className="text-primary">AI</span>
+          <DialogTitle className="text-center text-xl flex items-center justify-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+              <Code2 className="w-4 h-4 text-primary-foreground" />
+            </div>
+            Chester Code <span className="text-primary">IA</span>
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="login" className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'register')} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">Iniciar sesión</TabsTrigger>
             <TabsTrigger value="register">Registrarse</TabsTrigger>

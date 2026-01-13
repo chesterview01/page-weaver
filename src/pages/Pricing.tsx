@@ -48,7 +48,7 @@ const Pricing: React.FC = () => {
       <div className="container max-w-6xl mx-auto py-12 px-4">
         <Button
           variant="ghost"
-          onClick={() => navigate('/')}
+          onClick={() => navigate(-1)}
           className="mb-8"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
