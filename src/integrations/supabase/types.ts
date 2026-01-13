@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+        }
+        Relationships: []
+      }
       builds: {
         Row: {
           conversation_id: string
@@ -24,6 +51,7 @@ export type Database = {
           js: string
           label: string
           message_id: string | null
+          project_id: string | null
         }
         Insert: {
           conversation_id: string
@@ -34,6 +62,7 @@ export type Database = {
           js?: string
           label: string
           message_id?: string | null
+          project_id?: string | null
         }
         Update: {
           conversation_id?: string
@@ -44,6 +73,7 @@ export type Database = {
           js?: string
           label?: string
           message_id?: string | null
+          project_id?: string | null
         }
         Relationships: [
           {
@@ -58,6 +88,13 @@ export type Database = {
             columns: ["message_id"]
             isOneToOne: false
             referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "builds_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -111,6 +148,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      projects: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          auto_save_enabled: boolean
+          created_at: string
+          custom_api_key: string | null
+          custom_api_url: string | null
+          id: string
+          narrative_style: string
+          preview_in_new_tab: boolean
+          updated_at: string
+          use_custom_ai: boolean
+        }
+        Insert: {
+          auto_save_enabled?: boolean
+          created_at?: string
+          custom_api_key?: string | null
+          custom_api_url?: string | null
+          id?: string
+          narrative_style?: string
+          preview_in_new_tab?: boolean
+          updated_at?: string
+          use_custom_ai?: boolean
+        }
+        Update: {
+          auto_save_enabled?: boolean
+          created_at?: string
+          custom_api_key?: string | null
+          custom_api_url?: string | null
+          id?: string
+          narrative_style?: string
+          preview_in_new_tab?: boolean
+          updated_at?: string
+          use_custom_ai?: boolean
+        }
+        Relationships: []
       }
     }
     Views: {
