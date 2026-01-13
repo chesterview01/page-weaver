@@ -23,6 +23,8 @@ const Index = () => {
     selectVersion,
     saveToProject,
     lastBuildId,
+    currentProjectId,
+    clearChat,
   } = useChat();
 
   const { settings } = useSettings();
@@ -90,6 +92,7 @@ const Index = () => {
             <SaveProjectDialog 
               onSave={saveToProject}
               disabled={!lastBuildId}
+              existingProjectId={currentProjectId}
             />
           </div>
           <div className="flex-1">
