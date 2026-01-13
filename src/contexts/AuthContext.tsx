@@ -22,6 +22,7 @@ interface AuthContextType {
   wallet: Wallet | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isAdmin: boolean;
   signUp: (email: string, password: string, displayName?: string) => Promise<{ data: any; error: any }>;
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<void>;

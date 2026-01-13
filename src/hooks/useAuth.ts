@@ -22,13 +22,15 @@ export const useAuth = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Load profile and wallet
   const loadUserData = useCallback(async (userId: string) => {
     try {
-      const [profileRes, walletRes] = await Promise.all([
+      const [profileRes, walletRes, roleRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
         supabase.from('wallets').select('*').eq('user_id', userId).maybeSingle(),
+        supabase.from('user_roles').select('role').eq('user_id', userId).eq('role', 'admin').maybeSingle(),
       ]);
 
       if (profileRes.data) {
@@ -37,6 +39,7 @@ export const useAuth = () => {
       if (walletRes.data) {
         setWallet(walletRes.data as Wallet);
       }
+      setIsAdmin(!!roleRes.data);
     } catch (error) {
       console.error('Error loading user data:', error);
     }
@@ -207,6 +210,7 @@ export const useAuth = () => {
     profile,
     wallet,
     isLoading,
+    isAdmin,
     signUp,
     signIn,
     signOut,

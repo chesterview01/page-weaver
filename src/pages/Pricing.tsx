@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, Zap, Crown, Rocket, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useSubscriptionPlans } from '@/hooks/useSubscriptionPlans';
-import { useAuth } from '@/hooks/useAuth';
+import { useSubscriptionPlans, SubscriptionPlan } from '@/hooks/useSubscriptionPlans';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import PaymentModal from '@/components/PaymentModal';
 
 const planIcons: Record<string, React.ElementType> = {
   'Básico': Zap,
@@ -17,9 +18,11 @@ const planIcons: Record<string, React.ElementType> = {
 const Pricing: React.FC = () => {
   const navigate = useNavigate();
   const { plans, isLoading } = useSubscriptionPlans();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuthContext();
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
-  const handleSelectPlan = (planId: string) => {
+  const handleSelectPlan = (plan: SubscriptionPlan) => {
     if (!isAuthenticated) {
       toast({
         title: "Inicia sesión",
@@ -29,11 +32,8 @@ const Pricing: React.FC = () => {
       return;
     }
     
-    // TODO: Integrate with payment processor
-    toast({
-      title: "Próximamente",
-      description: "La integración de pagos estará disponible pronto.",
-    });
+    setSelectedPlan(plan);
+    setPaymentModalOpen(true);
   };
 
   const formatPrice = (cents: number) => {
@@ -125,7 +125,7 @@ const Pricing: React.FC = () => {
                     <Button 
                       className="w-full" 
                       variant={isPopular ? 'default' : 'outline'}
-                      onClick={() => handleSelectPlan(plan.id)}
+                      onClick={() => handleSelectPlan(plan)}
                     >
                       Seleccionar plan
                     </Button>
@@ -144,6 +144,16 @@ const Pricing: React.FC = () => {
           </p>
         </div>
       </div>
+
+      <PaymentModal
+        open={paymentModalOpen}
+        onOpenChange={setPaymentModalOpen}
+        plan={selectedPlan ? {
+          id: selectedPlan.id,
+          name: selectedPlan.name,
+          price_cents: selectedPlan.price_cents,
+        } : null}
+      />
     </div>
   );
 };
