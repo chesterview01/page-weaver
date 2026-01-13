@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FolderOpen, Bot, Settings2, Trash2, ExternalLink, Save, Globe, AlertCircle, CheckCircle2, Code, FileCode, ChevronDown, ChevronUp, Database } from 'lucide-react';
+import { ArrowLeft, FolderOpen, Bot, Settings2, Trash2, ExternalLink, Save, Globe, AlertCircle, CheckCircle2, Code, FileCode, ChevronDown, ChevronUp, Database, Pencil, Eye, EyeOff, Loader2, Zap, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,10 +9,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { useSettings } from '@/hooks/useSettings';
 import { useProjects, Project, ProjectBuild } from '@/hooks/useProjects';
 import { IntegrationsPanel } from '@/components/IntegrationsPanel';
 import { SupabaseConnector } from '@/components/SupabaseConnector';
+import { toast } from '@/hooks/use-toast';
 // ProjectCard component for displaying individual projects with their builds
 const ProjectCard: React.FC<{
   project: Project;
@@ -34,6 +36,8 @@ const ProjectCard: React.FC<{
     setExpanded(!expanded);
   };
 
+  const isPublished = project.is_published;
+
   return (
     <div className="rounded-lg bg-muted/50 border border-border overflow-hidden">
       <div className="flex items-center justify-between p-4 hover:bg-muted/80 transition-colors">
@@ -41,19 +45,41 @@ const ProjectCard: React.FC<{
           <div className="flex items-center gap-2">
             <FolderOpen className="h-4 w-4 text-primary" />
             <h3 className="font-medium text-foreground">{project.name}</h3>
+            <Badge variant={isPublished ? "default" : "secondary"} className="text-xs">
+              {isPublished ? (
+                <>
+                  <Eye className="h-3 w-3 mr-1" />
+                  Publicado
+                </>
+              ) : (
+                <>
+                  <EyeOff className="h-3 w-3 mr-1" />
+                  Borrador
+                </>
+              )}
+            </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             {project.description || 'Sin descripción'}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Actualizado: {new Date(project.updated_at).toLocaleDateString('es-ES', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </p>
+          <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+            <span>
+              Creado: {new Date(project.created_at).toLocaleDateString('es-ES', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              })}
+            </span>
+            <span>
+              Actualizado: {new Date(project.updated_at).toLocaleDateString('es-ES', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <SupabaseConnector projectId={project.id} projectName={project.name} compact />
@@ -76,7 +102,11 @@ const ProjectCard: React.FC<{
           <Button
             variant="ghost"
             size="icon"
-            onClick={onDelete}
+            onClick={() => {
+              if (confirm('¿Estás seguro de eliminar este proyecto?')) {
+                onDelete();
+              }
+            }}
             title="Eliminar proyecto"
             className="text-destructive hover:text-destructive"
           >
@@ -93,7 +123,10 @@ const ProjectCard: React.FC<{
           </h4>
           
           {loadingBuilds ? (
-            <p className="text-sm text-muted-foreground">Cargando versiones...</p>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Cargando versiones...
+            </div>
           ) : builds.length === 0 ? (
             <p className="text-sm text-muted-foreground">No hay versiones guardadas.</p>
           ) : (
@@ -267,49 +300,98 @@ const Settings = () => {
             <IntegrationsPanel />
           </TabsContent>
 
-          {/* AI Config Tab */}
+          {/* AI Config Tab - DeepSeek */}
           <TabsContent value="ai" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Configuración de IA</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-primary" />
+                  Configuración de IA - DeepSeek
+                </CardTitle>
                 <CardDescription>
-                  Configura una API de IA personalizada. Si no configuras nada, se usará Lovable AI por defecto.
+                  Conecta tu API Key de DeepSeek para usar sus modelos de IA. Si no configuras nada, se usará Lovable AI por defecto.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-base">Usar IA personalizada</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Activa esta opción para usar tu propia API de IA
-                    </p>
+                {/* Connection Status */}
+                <div className="p-4 rounded-lg border border-border bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {settings?.use_custom_ai && settings?.custom_api_key ? (
+                        <>
+                          <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+                          <div>
+                            <p className="font-medium text-foreground">Conectado a DeepSeek</p>
+                            <p className="text-xs text-muted-foreground">Usando API personalizada</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-3 h-3 rounded-full bg-muted-foreground" />
+                          <div>
+                            <p className="font-medium text-foreground">Sin configurar</p>
+                            <p className="text-xs text-muted-foreground">Usando Lovable AI por defecto</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {settings?.use_custom_ai && settings?.custom_api_key && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          updateSettings({ 
+                            use_custom_ai: false, 
+                            custom_api_key: null, 
+                            custom_api_url: null 
+                          });
+                          setCustomApiKey('');
+                          setCustomApiUrl('');
+                          toast({
+                            title: "DeepSeek desconectado",
+                            description: "Ahora se usa Lovable AI por defecto.",
+                          });
+                        }}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Desconectar
+                      </Button>
+                    )}
                   </div>
-                  <Switch
-                    checked={settings?.use_custom_ai || false}
-                    onCheckedChange={(checked) => {
-                      if (!checked) {
-                        updateSettings({ use_custom_ai: false });
-                      }
-                    }}
-                  />
                 </div>
 
                 <div className="space-y-4 pt-4 border-t border-border">
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>¿No tienes API Key?</AlertTitle>
+                    <AlertDescription>
+                      Obtén tu API Key en{' '}
+                      <a 
+                        href="https://platform.deepseek.com/api_keys" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline font-medium"
+                      >
+                        platform.deepseek.com
+                      </a>
+                    </AlertDescription>
+                  </Alert>
+
                   <div className="space-y-2">
                     <Label htmlFor="api-url">URL de la API</Label>
                     <Input
                       id="api-url"
-                      placeholder="https://api.example.com/v1/chat/completions"
+                      placeholder="https://api.deepseek.com/v1/chat/completions"
                       value={customApiUrl}
                       onChange={(e) => setCustomApiUrl(e.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">
-                      La URL debe ser compatible con el formato de OpenAI
+                      URL por defecto de DeepSeek: https://api.deepseek.com/v1/chat/completions
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="api-key">API Key</Label>
+                    <Label htmlFor="api-key">API Key de DeepSeek</Label>
                     <Input
                       id="api-key"
                       type="password"
@@ -317,6 +399,9 @@ const Settings = () => {
                       value={customApiKey}
                       onChange={(e) => setCustomApiKey(e.target.value)}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Tu clave se guarda de forma segura y nunca se comparte
+                    </p>
                   </div>
 
                   <div className="flex gap-3">
@@ -325,9 +410,19 @@ const Settings = () => {
                       onClick={handleTestConnection}
                       disabled={!customApiUrl || !customApiKey || isTesting}
                     >
-                      {isTesting ? 'Probando...' : 'Probar conexión'}
+                      {isTesting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Validando...
+                        </>
+                      ) : (
+                        'Probar conexión'
+                      )}
                     </Button>
-                    <Button onClick={handleSaveAIConfig}>
+                    <Button 
+                      onClick={handleSaveAIConfig}
+                      disabled={!customApiUrl || !customApiKey}
+                    >
                       <Save className="h-4 w-4 mr-2" />
                       Guardar configuración
                     </Button>
