@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Code2, Settings, ExternalLink, LogIn, LogOut, Coins, CreditCard, User } from 'lucide-react';
+import { Code2, Settings, ExternalLink, LogIn, LogOut, Coins, CreditCard, User, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -12,6 +12,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import AuthModal from '@/components/AuthModal';
 import ExportDropdown from '@/components/ExportDropdown';
+import GitHubConnector from '@/components/GitHubConnector';
+import PublishDialog from '@/components/PublishDialog';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { CodeOutput } from '@/types/chat';
 
@@ -20,11 +22,12 @@ interface HeaderProps {
   hasCode?: boolean;
   currentCode?: CodeOutput | null;
   projectName?: string;
+  projectId?: string | null;
 }
 
-const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode, currentCode, projectName }) => {
+const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode, currentCode, projectName, projectId }) => {
   const navigate = useNavigate();
-  const { user, profile, wallet, isAuthenticated, signOut, isLoading } = useAuthContext();
+  const { user, profile, wallet, isAuthenticated, signOut, isLoading, isAdmin } = useAuthContext();
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   const getInitials = (name: string | null | undefined) => {
@@ -55,8 +58,22 @@ const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode, currentCode, pr
             </div>
           )}
 
+          {/* GitHub Connector */}
+          {isAuthenticated && (
+            <GitHubConnector currentCode={typeof currentCode === 'string' ? currentCode : ''} />
+          )}
+
           {/* Export dropdown */}
           <ExportDropdown code={currentCode || null} projectName={projectName} />
+
+          {/* Publish button */}
+          {isAuthenticated && hasCode && (
+            <PublishDialog
+              projectId={projectId || null}
+              projectName={projectName || 'Mi Proyecto'}
+              currentCode={typeof currentCode === 'string' ? currentCode : ''}
+            />
+          )}
 
           {hasCode && onOpenPreview && (
             <Button 
@@ -121,6 +138,12 @@ const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode, currentCode, pr
                   <CreditCard className="w-4 h-4 mr-2" />
                   Planes y créditos
                 </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => navigate('/admin')}>
+                    <Shield className="w-4 h-4 mr-2" />
+                    Administración
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={signOut} className="text-destructive">
                   <LogOut className="w-4 h-4 mr-2" />

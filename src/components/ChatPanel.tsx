@@ -7,11 +7,13 @@ interface ChatPanelProps {
   messages: Message[];
   isLoading: boolean;
   onSendMessage: (content: string) => void;
+  disabled?: boolean;
 }
 const ChatPanel: React.FC<ChatPanelProps> = ({
   messages,
   isLoading,
-  onSendMessage
+  onSendMessage,
+  disabled = false
 }) => {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);

@@ -8,6 +8,7 @@ import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Settings from "./pages/Settings";
 import Pricing from "./pages/Pricing";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -68,6 +69,11 @@ const AppRoutes = () => (
       </ProtectedRoute>
     } />
     <Route path="/pricing" element={<Pricing />} />
+    <Route path="/admin" element={
+      <ProtectedRoute>
+        <Admin />
+      </ProtectedRoute>
+    } />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

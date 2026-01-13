@@ -168,6 +168,39 @@ export type Database = {
         }
         Relationships: []
       }
+      github_connections: {
+        Row: {
+          created_at: string
+          github_username: string | null
+          id: string
+          personal_access_token: string | null
+          repository_name: string | null
+          repository_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          github_username?: string | null
+          id?: string
+          personal_access_token?: string | null
+          repository_name?: string | null
+          repository_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          github_username?: string | null
+          id?: string
+          personal_access_token?: string | null
+          repository_name?: string | null
+          repository_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
@@ -196,6 +229,83 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_methods: {
+        Row: {
+          created_at: string
+          details: Json
+          id: string
+          is_active: boolean | null
+          name: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          id?: string
+          is_active?: boolean | null
+          name: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      plan_payment_requests: {
+        Row: {
+          admin_notes: string | null
+          amount_cents: number
+          created_at: string
+          id: string
+          payment_method: string
+          payment_reference: string | null
+          plan_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          amount_cents: number
+          created_at?: string
+          id?: string
+          payment_method: string
+          payment_reference?: string | null
+          plan_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          amount_cents?: number
+          created_at?: string
+          id?: string
+          payment_method?: string
+          payment_reference?: string | null
+          plan_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_payment_requests_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -230,24 +340,33 @@ export type Database = {
       projects: {
         Row: {
           created_at: string
+          custom_domain: string | null
           description: string | null
+          domain_status: string | null
           id: string
+          is_published: boolean | null
           name: string
           updated_at: string
           user_id: string | null
         }
         Insert: {
           created_at?: string
+          custom_domain?: string | null
           description?: string | null
+          domain_status?: string | null
           id?: string
+          is_published?: boolean | null
           name: string
           updated_at?: string
           user_id?: string | null
         }
         Update: {
           created_at?: string
+          custom_domain?: string | null
           description?: string | null
+          domain_status?: string | null
           id?: string
+          is_published?: boolean | null
           name?: string
           updated_at?: string
           user_id?: string | null
