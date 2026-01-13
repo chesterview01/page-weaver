@@ -152,6 +152,9 @@ export const useChat = () => {
   // Initialize or load conversation
   useEffect(() => {
     const initConversation = async () => {
+      // Wait for auth to be ready
+      if (!user) return;
+      
       try {
         // Check if loading a specific project
         const urlParams = new URLSearchParams(window.location.search);
@@ -201,15 +204,18 @@ export const useChat = () => {
           }
         }
         
-        // Create a new conversation if none exists
-        if (!conversationId) {
+        // Create a new conversation if none exists and user is authenticated
+        if (!conversationId && user) {
           const { data: conv, error: convError } = await supabase
             .from('conversations')
-            .insert({})
+            .insert({ user_id: user.id })
             .select()
             .single();
 
-          if (convError) throw convError;
+          if (convError) {
+            console.error('Error creating conversation:', convError);
+            return;
+          }
           setConversationId(conv.id);
         }
       } catch (error) {
@@ -218,7 +224,7 @@ export const useChat = () => {
     };
 
     initConversation();
-  }, []);
+  }, [user]);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!isAuthenticated) {
