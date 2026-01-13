@@ -5,6 +5,7 @@ import PreviewPanel from '@/components/PreviewPanel';
 import VersionPanel from '@/components/VersionPanel';
 import SaveProjectDialog from '@/components/SaveProjectDialog';
 import AuthModal from '@/components/AuthModal';
+import { SupabaseConnector } from '@/components/SupabaseConnector';
 import { useChat } from '@/hooks/useChat';
 import { useSettings } from '@/hooks/useSettings';
 import { usePreviewWindow } from '@/hooks/usePreviewWindow';
@@ -89,11 +90,19 @@ const Index = () => {
         <div className="hidden md:flex flex-1 flex-col">
           <div className="flex items-center justify-between p-2 border-b border-border bg-card/50">
             <span className="text-sm text-muted-foreground px-2">Vista previa</span>
-            <SaveProjectDialog 
-              onSave={saveToProject}
-              disabled={!lastBuildId}
-              existingProjectId={currentProjectId}
-            />
+            <div className="flex items-center gap-2">
+              {currentProjectId && (
+                <SupabaseConnector 
+                  projectId={currentProjectId} 
+                  compact 
+                />
+              )}
+              <SaveProjectDialog 
+                onSave={saveToProject}
+                disabled={!lastBuildId}
+                existingProjectId={currentProjectId}
+              />
+            </div>
           </div>
           <div className="flex-1">
             <PreviewPanel code={currentCode} />
