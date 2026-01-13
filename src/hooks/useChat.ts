@@ -3,6 +3,7 @@ import { Message, Version, CodeOutput } from '@/types/chat';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useSettings } from '@/hooks/useSettings';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
@@ -146,6 +147,7 @@ export const useChat = () => {
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [lastBuildId, setLastBuildId] = useState<string | null>(null);
   const { settings } = useSettings();
+  const { user, deductCredit, wallet, isAuthenticated } = useAuthContext();
 
   // Initialize or load conversation
   useEffect(() => {
@@ -219,6 +221,28 @@ export const useChat = () => {
   }, []);
 
   const sendMessage = useCallback(async (content: string) => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Inicia sesión",
+        description: "Necesitas una cuenta para enviar mensajes.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!wallet || wallet.credits < 1) {
+      toast({
+        title: "Sin créditos",
+        description: "No tienes suficientes créditos. Visita la sección de planes.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Deduct credit first
+    const credited = await deductCredit(1, content.substring(0, 50));
+    if (!credited) return;
+
     if (!conversationId) {
       toast({
         title: "Error",
@@ -375,7 +399,7 @@ export const useChat = () => {
         setMessages(prev => prev.filter(m => m.id !== assistantId));
       },
     });
-  }, [conversationId, messages, currentCode, settings, currentProjectId]);
+  }, [conversationId, messages, currentCode, settings, currentProjectId, isAuthenticated, wallet, deductCredit]);
 
   const selectVersion = useCallback((versionId: string) => {
     const version = versions.find(v => v.id === versionId);

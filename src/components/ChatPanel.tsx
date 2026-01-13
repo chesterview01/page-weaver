@@ -8,9 +8,10 @@ interface ChatPanelProps {
   messages: Message[];
   isLoading: boolean;
   onSendMessage: (content: string) => void;
+  disabled?: boolean;
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ messages, isLoading, onSendMessage }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({ messages, isLoading, onSendMessage, disabled = false }) => {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -153,14 +154,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, isLoading, onSendMessag
             placeholder="Describe lo que quieres construir..."
             className="w-full bg-transparent px-4 py-3 pr-12 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none resize-none min-h-[48px] max-h-[150px]"
             rows={1}
-            disabled={isLoading}
+            disabled={isLoading || disabled}
           />
           <Button
             type="submit"
             size="icon"
             variant="glow"
             className="absolute right-2 bottom-2 h-8 w-8"
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || disabled}
           >
             <Send className="w-4 h-4" />
           </Button>

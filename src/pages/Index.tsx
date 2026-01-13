@@ -1,12 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Header from '@/components/Header';
 import ChatPanel from '@/components/ChatPanel';
 import PreviewPanel from '@/components/PreviewPanel';
 import VersionPanel from '@/components/VersionPanel';
 import SaveProjectDialog from '@/components/SaveProjectDialog';
+import AuthModal from '@/components/AuthModal';
 import { useChat } from '@/hooks/useChat';
 import { useSettings } from '@/hooks/useSettings';
 import { usePreviewWindow } from '@/hooks/usePreviewWindow';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { LogIn } from 'lucide-react';
 
 const Index = () => {
   const {
@@ -23,6 +27,8 @@ const Index = () => {
 
   const { settings } = useSettings();
   const { openPreview, updatePreview, isPreviewOpen } = usePreviewWindow();
+  const { isAuthenticated, wallet } = useAuthContext();
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
   // Auto-open preview in new tab when code changes (if setting enabled)
   useEffect(() => {
@@ -41,20 +47,56 @@ const Index = () => {
     }
   };
 
+  const handleSendMessage = async (content: string) => {
+    if (!isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
+    if (wallet && wallet.credits < 1) {
+      // The useChat hook will handle this, but we can show a message
+      return;
+    }
+
+    await sendMessage(content);
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Top glow effect */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] gradient-glow pointer-events-none" />
       
-      <Header onOpenPreview={handleOpenPreview} hasCode={!!currentCode} />
+      <Header 
+        onOpenPreview={handleOpenPreview} 
+        hasCode={!!currentCode} 
+        currentCode={currentCode}
+      />
       
       <main className="flex-1 flex overflow-hidden">
         {/* Left Column - Chat */}
         <div className="w-full md:w-[400px] lg:w-[450px] flex flex-col border-r border-border bg-card/30">
+          {!isAuthenticated && (
+            <div className="p-4 border-b border-border bg-muted/30">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Inicia sesión para usar el chat
+                </p>
+                <Button 
+                  size="sm" 
+                  onClick={() => setShowAuthPrompt(true)}
+                  className="gap-2"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Iniciar sesión
+                </Button>
+              </div>
+            </div>
+          )}
           <ChatPanel
             messages={messages}
             isLoading={isLoading}
-            onSendMessage={sendMessage}
+            onSendMessage={handleSendMessage}
+            disabled={!isAuthenticated}
           />
         </div>
 
@@ -81,6 +123,8 @@ const Index = () => {
           />
         </div>
       </main>
+
+      <AuthModal open={showAuthPrompt} onOpenChange={setShowAuthPrompt} />
     </div>
   );
 };
