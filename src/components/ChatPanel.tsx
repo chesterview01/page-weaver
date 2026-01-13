@@ -107,7 +107,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, isLoading, onSendMessag
                   : 'glass-panel rounded-bl-md'
               )}
             >
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              <div className="text-sm whitespace-pre-wrap prose prose-sm prose-invert max-w-none">
+                {message.content || (message.role === 'assistant' ? '...' : '')}
+              </div>
+              {message.codeOutput && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-primary">
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10">
+                    ✓ Código generado
+                  </span>
+                </div>
+              )}
               <span className="text-xs opacity-60 mt-2 block">
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
