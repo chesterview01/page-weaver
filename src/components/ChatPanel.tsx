@@ -107,8 +107,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, isLoading, onSendMessag
                   : 'glass-panel rounded-bl-md'
               )}
             >
-              <div className="text-sm whitespace-pre-wrap prose prose-sm prose-invert max-w-none">
-                {message.content || (message.role === 'assistant' ? '...' : '')}
+              <div className="text-sm whitespace-pre-wrap">
+                {message.content || (message.role === 'assistant' ? 'Pensando...' : '')}
               </div>
               {message.codeOutput && (
                 <div className="mt-2 flex items-center gap-2 text-xs text-primary">

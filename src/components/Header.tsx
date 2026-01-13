@@ -1,8 +1,16 @@
 import React from 'react';
-import { Zap, Github, Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Zap, Settings, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  onOpenPreview?: () => void;
+  hasCode?: boolean;
+}
+
+const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode }) => {
+  const navigate = useNavigate();
+
   return (
     <header className="flex items-center justify-between h-14 px-4 border-b border-border bg-card/50 backdrop-blur-sm">
       <div className="flex items-center gap-3">
@@ -17,14 +25,25 @@ const Header: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="h-9 w-9">
-          <Github className="w-4 h-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-9 w-9">
+        {hasCode && onOpenPreview && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onOpenPreview}
+            className="gap-2"
+          >
+            <ExternalLink className="w-4 h-4" />
+            Abrir vista previa
+          </Button>
+        )}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-9 w-9"
+          onClick={() => navigate('/settings')}
+          title="Ajustes"
+        >
           <Settings className="w-4 h-4" />
-        </Button>
-        <Button variant="glow" size="sm" className="ml-2">
-          Upgrade
         </Button>
       </div>
     </header>
