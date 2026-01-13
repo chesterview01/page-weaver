@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FolderOpen, Bot, Settings2, Trash2, ExternalLink, Save, Globe, AlertCircle, CheckCircle2, Code, FileCode, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, FolderOpen, Bot, Settings2, Trash2, ExternalLink, Save, Globe, AlertCircle, CheckCircle2, Code, FileCode, ChevronDown, ChevronUp, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useSettings } from '@/hooks/useSettings';
 import { useProjects, Project, ProjectBuild } from '@/hooks/useProjects';
-
+import { IntegrationsPanel } from '@/components/IntegrationsPanel';
+import { SupabaseConnector } from '@/components/SupabaseConnector';
 // ProjectCard component for displaying individual projects with their builds
 const ProjectCard: React.FC<{
   project: Project;
@@ -55,6 +56,7 @@ const ProjectCard: React.FC<{
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <SupabaseConnector projectId={project.id} projectName={project.name} compact />
           <Button
             variant="ghost"
             size="icon"
@@ -200,14 +202,18 @@ const Settings = () => {
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <Tabs defaultValue="projects" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-card">
+          <TabsList className="grid w-full grid-cols-5 bg-card">
             <TabsTrigger value="projects" className="flex items-center gap-2">
               <FolderOpen className="h-4 w-4" />
-              <span className="hidden sm:inline">Mis Proyectos</span>
+              <span className="hidden sm:inline">Proyectos</span>
+            </TabsTrigger>
+            <TabsTrigger value="integrations" className="flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              <span className="hidden sm:inline">Integraciones</span>
             </TabsTrigger>
             <TabsTrigger value="ai" className="flex items-center gap-2">
               <Bot className="h-4 w-4" />
-              <span className="hidden sm:inline">Cambiar IA</span>
+              <span className="hidden sm:inline">IA</span>
             </TabsTrigger>
             <TabsTrigger value="domain" className="flex items-center gap-2">
               <Globe className="h-4 w-4" />
@@ -254,6 +260,11 @@ const Settings = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Integrations Tab */}
+          <TabsContent value="integrations" className="space-y-4">
+            <IntegrationsPanel />
           </TabsContent>
 
           {/* AI Config Tab */}

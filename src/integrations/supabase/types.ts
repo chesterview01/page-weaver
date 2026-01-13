@@ -337,6 +337,56 @@ export type Database = {
         }
         Relationships: []
       }
+      project_integrations: {
+        Row: {
+          connection_status: string
+          created_at: string
+          id: string
+          integration_type: string
+          is_connected: boolean
+          last_sync_at: string | null
+          project_id: string
+          supabase_anon_key: string | null
+          supabase_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connection_status?: string
+          created_at?: string
+          id?: string
+          integration_type?: string
+          is_connected?: boolean
+          last_sync_at?: string | null
+          project_id: string
+          supabase_anon_key?: string | null
+          supabase_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          connection_status?: string
+          created_at?: string
+          id?: string
+          integration_type?: string
+          is_connected?: boolean
+          last_sync_at?: string | null
+          project_id?: string
+          supabase_anon_key?: string | null
+          supabase_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_integrations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           created_at: string
