@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Message, Version, CodeOutput } from '@/types/chat';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useSettings } from '@/hooks/useSettings';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { useLocalPersistence } from '@/hooks/useLocalPersistence';
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
@@ -25,14 +26,12 @@ const parseCodeFromResponse = (content: string): CodeOutput | null => {
 
 // Extract narrative text (everything before code blocks)
 const extractNarrative = (content: string): string => {
-  // Remove code blocks from content
   let narrative = content
     .replace(/```html\n?[\s\S]*?```/g, '')
     .replace(/```css\n?[\s\S]*?```/g, '')
     .replace(/```(?:javascript|js)\n?[\s\S]*?```/g, '')
     .trim();
   
-  // Clean up multiple newlines
   narrative = narrative.replace(/\n{3,}/g, '\n\n');
   
   return narrative || content;
@@ -146,85 +145,188 @@ export const useChat = () => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [lastBuildId, setLastBuildId] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  
   const { settings } = useSettings();
   const { user, deductCredit, wallet, isAuthenticated } = useAuthContext();
+  const { saveState, loadState, clearState, isCacheStale } = useLocalPersistence();
+  
+  const initializedRef = useRef(false);
 
-  // Initialize or load conversation
+  // Persist state to localStorage whenever it changes
   useEffect(() => {
-    const initConversation = async () => {
-      // Wait for auth to be ready
-      if (!user) return;
+    if (!isInitialized) return;
+    
+    saveState({
+      currentCode,
+      messages,
+      versions,
+      conversationId,
+      projectId: currentProjectId,
+      lastBuildId,
+      lastSync: new Date().toISOString(),
+    });
+  }, [messages, versions, currentCode, conversationId, currentProjectId, lastBuildId, isInitialized, saveState]);
+
+  // Initialize: Load from cache first, then sync with database
+  useEffect(() => {
+    if (initializedRef.current) return;
+    
+    const initializeChat = async () => {
+      // Load cached state first for immediate display
+      const cached = loadState();
       
-      try {
-        // Check if loading a specific project
-        const urlParams = new URLSearchParams(window.location.search);
-        const projectId = urlParams.get('project');
-        
-        if (projectId) {
-          setCurrentProjectId(projectId);
-          // Load project builds
-          const { data: builds } = await supabase
-            .from('builds')
-            .select('*')
-            .eq('project_id', projectId)
-            .order('created_at', { ascending: false });
-
-          if (builds && builds.length > 0) {
-            const loadedVersions: Version[] = builds.map(build => ({
-              id: build.id,
-              timestamp: new Date(build.created_at),
-              label: build.label,
-              code: { html: build.html, css: build.css, js: build.js },
-            }));
-            setVersions(loadedVersions);
-            setCurrentVersion(loadedVersions[0].id);
-            setCurrentCode(loadedVersions[0].code);
-            setLastBuildId(loadedVersions[0].id);
-            
-            // Get or create conversation for this project
-            if (builds[0].conversation_id) {
-              setConversationId(builds[0].conversation_id);
-              // Load messages
-              const { data: msgs } = await supabase
-                .from('messages')
-                .select('*')
-                .eq('conversation_id', builds[0].conversation_id)
-                .order('created_at', { ascending: true });
-              
-              if (msgs) {
-                const loadedMessages: Message[] = msgs.map(m => ({
-                  id: m.id,
-                  role: m.role as 'user' | 'assistant',
-                  content: extractNarrative(m.content),
-                  timestamp: new Date(m.created_at),
-                }));
-                setMessages(loadedMessages);
-              }
-            }
-          }
-        }
-        
-        // Create a new conversation if none exists and user is authenticated
-        if (!conversationId && user) {
-          const { data: conv, error: convError } = await supabase
-            .from('conversations')
-            .insert({ user_id: user.id })
-            .select()
-            .single();
-
-          if (convError) {
-            console.error('Error creating conversation:', convError);
-            return;
-          }
-          setConversationId(conv.id);
-        }
-      } catch (error) {
-        console.error('Error initializing conversation:', error);
+      // Check URL params for project loading
+      const urlParams = new URLSearchParams(window.location.search);
+      const projectIdFromUrl = urlParams.get('project');
+      
+      // If loading a specific project from URL, ignore cache
+      if (projectIdFromUrl) {
+        await loadProjectFromDatabase(projectIdFromUrl);
+        initializedRef.current = true;
+        setIsInitialized(true);
+        return;
       }
+      
+      // If we have cached data and user is authenticated
+      if (cached.conversationId && user) {
+        // Apply cached data immediately
+        if (cached.messages.length > 0) setMessages(cached.messages);
+        if (cached.versions.length > 0) setVersions(cached.versions);
+        if (cached.currentCode) setCurrentCode(cached.currentCode);
+        if (cached.conversationId) setConversationId(cached.conversationId);
+        if (cached.projectId) setCurrentProjectId(cached.projectId);
+        if (cached.lastBuildId) setLastBuildId(cached.lastBuildId);
+        if (cached.versions.length > 0) setCurrentVersion(cached.versions[0].id);
+        
+        // Sync with database if cache is stale
+        if (isCacheStale(cached.lastSync)) {
+          await syncWithDatabase(cached.conversationId);
+        }
+        
+        initializedRef.current = true;
+        setIsInitialized(true);
+        return;
+      }
+      
+      // No cache or no user - start fresh
+      if (user) {
+        await createNewConversation();
+      }
+      
+      initializedRef.current = true;
+      setIsInitialized(true);
     };
 
-    initConversation();
+    initializeChat();
   }, [user]);
+
+  const loadProjectFromDatabase = async (projectId: string) => {
+    try {
+      setCurrentProjectId(projectId);
+      
+      const { data: builds } = await supabase
+        .from('builds')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false });
+
+      if (builds && builds.length > 0) {
+        const loadedVersions: Version[] = builds.map(build => ({
+          id: build.id,
+          timestamp: new Date(build.created_at),
+          label: build.label,
+          code: { html: build.html, css: build.css, js: build.js },
+        }));
+        
+        setVersions(loadedVersions);
+        setCurrentVersion(loadedVersions[0].id);
+        setCurrentCode(loadedVersions[0].code);
+        setLastBuildId(loadedVersions[0].id);
+        
+        if (builds[0].conversation_id) {
+          setConversationId(builds[0].conversation_id);
+          await loadMessagesFromDatabase(builds[0].conversation_id);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading project from database:', error);
+    }
+  };
+
+  const loadMessagesFromDatabase = async (convId: string) => {
+    try {
+      const { data: msgs } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', convId)
+        .order('created_at', { ascending: true });
+      
+      if (msgs) {
+        const loadedMessages: Message[] = msgs.map(m => ({
+          id: m.id,
+          role: m.role as 'user' | 'assistant',
+          content: extractNarrative(m.content),
+          timestamp: new Date(m.created_at),
+        }));
+        setMessages(loadedMessages);
+      }
+    } catch (error) {
+      console.error('Error loading messages from database:', error);
+    }
+  };
+
+  const syncWithDatabase = async (convId: string) => {
+    try {
+      // Load latest messages
+      await loadMessagesFromDatabase(convId);
+      
+      // Load latest builds for this conversation
+      const { data: builds } = await supabase
+        .from('builds')
+        .select('*')
+        .eq('conversation_id', convId)
+        .order('created_at', { ascending: false });
+      
+      if (builds && builds.length > 0) {
+        const loadedVersions: Version[] = builds.map(build => ({
+          id: build.id,
+          timestamp: new Date(build.created_at),
+          label: build.label,
+          code: { html: build.html, css: build.css, js: build.js },
+        }));
+        
+        setVersions(loadedVersions);
+        setCurrentVersion(loadedVersions[0].id);
+        setCurrentCode(loadedVersions[0].code);
+        setLastBuildId(loadedVersions[0].id);
+        
+        // Update project ID if latest build has one
+        if (builds[0].project_id) {
+          setCurrentProjectId(builds[0].project_id);
+        }
+      }
+    } catch (error) {
+      console.error('Error syncing with database:', error);
+    }
+  };
+
+  const createNewConversation = async () => {
+    if (!user) return;
+    
+    try {
+      const { data: conv, error } = await supabase
+        .from('conversations')
+        .insert({ user_id: user.id })
+        .select()
+        .single();
+
+      if (error) throw error;
+      setConversationId(conv.id);
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+    }
+  };
 
   const sendMessage = useCallback(async (content: string) => {
     if (!isAuthenticated) {
@@ -245,7 +347,6 @@ export const useChat = () => {
       return;
     }
 
-    // Deduct credit first
     const credited = await deductCredit(1, content.substring(0, 50));
     if (!credited) return;
 
@@ -279,14 +380,14 @@ export const useChat = () => {
       console.error('Error saving user message:', error);
     }
 
-    // Prepare messages for AI (include context)
+    // Prepare messages for AI
     const aiMessages = messages.map(m => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
     }));
     aiMessages.push({ role: 'user', content });
 
-    // Include current code context if exists
+    // Include current code context
     if (currentCode && (currentCode.html || currentCode.css || currentCode.js)) {
       const codeContext = `Código actual:\n\nHTML:\n${currentCode.html}\n\nCSS:\n${currentCode.css}\n\nJS:\n${currentCode.js}`;
       aiMessages.unshift({ role: 'user', content: `Contexto: ${codeContext}` });
@@ -295,7 +396,6 @@ export const useChat = () => {
     let assistantContent = '';
     const assistantId = `msg-${Date.now()}-ai`;
 
-    // Create placeholder assistant message
     setMessages(prev => [...prev, {
       id: assistantId,
       role: 'assistant',
@@ -313,7 +413,6 @@ export const useChat = () => {
       } : null,
       onDelta: (chunk) => {
         assistantContent += chunk;
-        // Show only narrative in chat
         const narrativeContent = extractNarrative(assistantContent);
         setMessages(prev => 
           prev.map(m => m.id === assistantId ? { ...m, content: narrativeContent } : m)
@@ -322,7 +421,6 @@ export const useChat = () => {
       onDone: async () => {
         setIsLoading(false);
 
-        // Parse code from response
         const code = parseCodeFromResponse(assistantContent);
         const narrativeContent = extractNarrative(assistantContent);
         
@@ -334,7 +432,6 @@ export const useChat = () => {
             code,
           };
 
-          // Update message with code output indicator
           setMessages(prev =>
             prev.map(m => m.id === assistantId ? { ...m, content: narrativeContent, codeOutput: code } : m)
           );
@@ -350,7 +447,7 @@ export const useChat = () => {
               .insert({
                 conversation_id: conversationId,
                 role: 'assistant',
-                content: assistantContent, // Save full content including code
+                content: assistantContent,
               })
               .select()
               .single();
@@ -368,9 +465,14 @@ export const useChat = () => {
 
               if (build) {
                 setLastBuildId(build.id);
+                
+                // Show toast for auto-save
+                toast({
+                  title: "Build guardado",
+                  description: "Tu código ha sido guardado automáticamente.",
+                });
               }
 
-              // Log action
               await supabase.from('audit_logs').insert({
                 action: 'build_created',
                 entity_type: 'build',
@@ -401,7 +503,6 @@ export const useChat = () => {
           description: error.message,
           variant: "destructive",
         });
-        // Remove placeholder message on error
         setMessages(prev => prev.filter(m => m.id !== assistantId));
       },
     });
@@ -413,7 +514,6 @@ export const useChat = () => {
       setCurrentVersion(versionId);
       setCurrentCode(version.code);
       
-      // Log rollback action
       supabase.from('audit_logs').insert({
         action: 'version_rollback',
         entity_type: 'build',
@@ -434,14 +534,14 @@ export const useChat = () => {
     }
 
     try {
+      // Update all builds in this conversation to the project
       await supabase
         .from('builds')
         .update({ project_id: projectId })
-        .eq('id', lastBuildId);
+        .eq('conversation_id', conversationId);
 
       setCurrentProjectId(projectId);
 
-      // Log action
       await supabase.from('audit_logs').insert({
         action: 'build_saved_to_project',
         entity_type: 'build',
@@ -451,7 +551,7 @@ export const useChat = () => {
 
       toast({
         title: "Proyecto guardado",
-        description: "El build se ha guardado correctamente.",
+        description: "El proyecto se ha guardado correctamente con todos los archivos.",
       });
     } catch (error) {
       console.error('Error saving to project:', error);
@@ -461,7 +561,28 @@ export const useChat = () => {
         variant: "destructive",
       });
     }
-  }, [lastBuildId]);
+  }, [lastBuildId, conversationId]);
+
+  // Clear chat and start new conversation
+  const clearChat = useCallback(async () => {
+    clearState();
+    setMessages([]);
+    setVersions([]);
+    setCurrentVersion(null);
+    setCurrentCode(null);
+    setCurrentProjectId(null);
+    setLastBuildId(null);
+    initializedRef.current = false;
+    
+    if (user) {
+      await createNewConversation();
+    }
+    
+    toast({
+      title: "Chat limpiado",
+      description: "Se ha iniciado una nueva conversación.",
+    });
+  }, [clearState, user]);
 
   return {
     messages,
@@ -474,5 +595,7 @@ export const useChat = () => {
     saveToProject,
     lastBuildId,
     currentProjectId,
+    clearChat,
+    conversationId,
   };
 };

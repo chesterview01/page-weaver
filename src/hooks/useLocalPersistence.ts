@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { CodeOutput, Message, Version } from '@/types/chat';
 
 const STORAGE_KEYS = {
@@ -7,14 +7,18 @@ const STORAGE_KEYS = {
   VERSIONS: 'chester_versions',
   CONVERSATION_ID: 'chester_conversation_id',
   PROJECT_ID: 'chester_project_id',
+  LAST_BUILD_ID: 'chester_last_build_id',
+  LAST_SYNC: 'chester_last_sync',
 };
 
-interface PersistedState {
+export interface PersistedState {
   currentCode: CodeOutput | null;
   messages: Message[];
   versions: Version[];
   conversationId: string | null;
   projectId: string | null;
+  lastBuildId: string | null;
+  lastSync: string | null;
 }
 
 export const useLocalPersistence = () => {
@@ -36,6 +40,12 @@ export const useLocalPersistence = () => {
       if (state.projectId !== undefined) {
         localStorage.setItem(STORAGE_KEYS.PROJECT_ID, state.projectId || '');
       }
+      if (state.lastBuildId !== undefined) {
+        localStorage.setItem(STORAGE_KEYS.LAST_BUILD_ID, state.lastBuildId || '');
+      }
+      if (state.lastSync !== undefined) {
+        localStorage.setItem(STORAGE_KEYS.LAST_SYNC, state.lastSync || '');
+      }
     } catch (error) {
       console.error('Error saving to localStorage:', error);
     }
@@ -49,6 +59,8 @@ export const useLocalPersistence = () => {
       const versions = localStorage.getItem(STORAGE_KEYS.VERSIONS);
       const conversationId = localStorage.getItem(STORAGE_KEYS.CONVERSATION_ID);
       const projectId = localStorage.getItem(STORAGE_KEYS.PROJECT_ID);
+      const lastBuildId = localStorage.getItem(STORAGE_KEYS.LAST_BUILD_ID);
+      const lastSync = localStorage.getItem(STORAGE_KEYS.LAST_SYNC);
 
       return {
         currentCode: currentCode ? JSON.parse(currentCode) : null,
@@ -62,6 +74,8 @@ export const useLocalPersistence = () => {
         })) : [],
         conversationId: conversationId || null,
         projectId: projectId || null,
+        lastBuildId: lastBuildId || null,
+        lastSync: lastSync || null,
       };
     } catch (error) {
       console.error('Error loading from localStorage:', error);
@@ -71,6 +85,8 @@ export const useLocalPersistence = () => {
         versions: [],
         conversationId: null,
         projectId: null,
+        lastBuildId: null,
+        lastSync: null,
       };
     }
   }, []);
@@ -86,9 +102,19 @@ export const useLocalPersistence = () => {
     }
   }, []);
 
+  // Check if cache is stale (older than 1 hour)
+  const isCacheStale = useCallback((lastSync: string | null): boolean => {
+    if (!lastSync) return true;
+    const syncTime = new Date(lastSync).getTime();
+    const now = Date.now();
+    const oneHour = 60 * 60 * 1000;
+    return now - syncTime > oneHour;
+  }, []);
+
   return {
     saveState,
     loadState,
     clearState,
+    isCacheStale,
   };
 };

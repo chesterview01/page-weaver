@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FolderOpen, Bot, Settings2, Trash2, ExternalLink, Save, Globe, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, FolderOpen, Bot, Settings2, Trash2, ExternalLink, Save, Globe, AlertCircle, CheckCircle2, Code, FileCode, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,12 +10,127 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useSettings } from '@/hooks/useSettings';
-import { useProjects } from '@/hooks/useProjects';
+import { useProjects, Project, ProjectBuild } from '@/hooks/useProjects';
+
+// ProjectCard component for displaying individual projects with their builds
+const ProjectCard: React.FC<{
+  project: Project;
+  onOpen: () => void;
+  onDelete: () => void;
+  getProjectBuilds: (projectId: string) => Promise<ProjectBuild[]>;
+}> = ({ project, onOpen, onDelete, getProjectBuilds }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [builds, setBuilds] = useState<ProjectBuild[]>([]);
+  const [loadingBuilds, setLoadingBuilds] = useState(false);
+
+  const handleExpand = async () => {
+    if (!expanded && builds.length === 0) {
+      setLoadingBuilds(true);
+      const projectBuilds = await getProjectBuilds(project.id);
+      setBuilds(projectBuilds);
+      setLoadingBuilds(false);
+    }
+    setExpanded(!expanded);
+  };
+
+  return (
+    <div className="rounded-lg bg-muted/50 border border-border overflow-hidden">
+      <div className="flex items-center justify-between p-4 hover:bg-muted/80 transition-colors">
+        <div className="flex-1 cursor-pointer" onClick={handleExpand}>
+          <div className="flex items-center gap-2">
+            <FolderOpen className="h-4 w-4 text-primary" />
+            <h3 className="font-medium text-foreground">{project.name}</h3>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            {project.description || 'Sin descripción'}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Actualizado: {new Date(project.updated_at).toLocaleDateString('es-ES', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleExpand}
+            title={expanded ? "Ocultar versiones" : "Ver versiones"}
+          >
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpen}
+            title="Abrir proyecto"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+            title="Eliminar proyecto"
+            className="text-destructive hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      
+      {expanded && (
+        <div className="border-t border-border bg-background/50 p-4">
+          <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+            <Code className="h-4 w-4" />
+            Versiones guardadas ({builds.length})
+          </h4>
+          
+          {loadingBuilds ? (
+            <p className="text-sm text-muted-foreground">Cargando versiones...</p>
+          ) : builds.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No hay versiones guardadas.</p>
+          ) : (
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {builds.map((build, index) => (
+                <div key={build.id} className="flex items-center justify-between p-2 rounded bg-muted/30 text-sm">
+                  <div className="flex items-center gap-2">
+                    <FileCode className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-medium">{build.label}</span>
+                    {index === 0 && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-primary/20 text-primary">Última</span>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(build.created_at).toLocaleDateString('es-ES', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div className="mt-3 p-2 rounded bg-muted/30 text-xs text-muted-foreground">
+            <strong>Archivos incluidos:</strong> index.html, style.css, script.js
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const Settings = () => {
   const navigate = useNavigate();
   const { settings, isLoading: settingsLoading, updateSettings, testCustomAI } = useSettings();
-  const { projects, isLoading: projectsLoading, deleteProject } = useProjects();
+  const { projects, isLoading: projectsLoading, deleteProject, getProjectBuilds } = useProjects();
 
   const [customApiUrl, setCustomApiUrl] = useState(settings?.custom_api_url || '');
   const [customApiKey, setCustomApiKey] = useState(settings?.custom_api_key || '');
@@ -110,7 +225,7 @@ const Settings = () => {
               <CardHeader>
                 <CardTitle>Mis Proyectos</CardTitle>
                 <CardDescription>
-                  Gestiona tus proyectos guardados. Puedes abrir, editar o eliminar cualquier proyecto.
+                  Gestiona tus proyectos guardados. Cada proyecto contiene los archivos HTML, CSS y JavaScript generados.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -119,51 +234,21 @@ const Settings = () => {
                     Cargando proyectos...
                   </div>
                 ) : projects.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No tienes proyectos guardados aún.
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p className="font-medium">No tienes proyectos guardados aún</p>
+                    <p className="text-sm mt-1">Crea tu primer proyecto en el editor y guárdalo.</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {projects.map((project) => (
-                      <div
+                      <ProjectCard 
                         key={project.id}
-                        className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border hover:bg-muted transition-colors"
-                      >
-                        <div className="flex-1">
-                          <h3 className="font-medium text-foreground">{project.name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {project.description || 'Sin descripción'}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Actualizado: {new Date(project.updated_at).toLocaleDateString('es-ES', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => navigate(`/app?project=${project.id}`)}
-                            title="Abrir proyecto"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteProject(project.id)}
-                            title="Eliminar proyecto"
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
+                        project={project}
+                        onOpen={() => navigate(`/app?project=${project.id}`)}
+                        onDelete={() => deleteProject(project.id)}
+                        getProjectBuilds={getProjectBuilds}
+                      />
                     ))}
                   </div>
                 )}
