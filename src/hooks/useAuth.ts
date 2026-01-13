@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 import { toast } from '@/hooks/use-toast';
@@ -16,15 +16,34 @@ export interface Wallet {
   credits: number;
 }
 
-export const useAuth = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [wallet, setWallet] = useState<Wallet | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+interface AuthState {
+  user: User | null;
+  session: Session | null;
+  profile: Profile | null;
+  wallet: Wallet | null;
+  isLoading: boolean;
+  isAdmin: boolean;
+}
 
-  // Load profile and wallet
+const initialState: AuthState = {
+  user: null,
+  session: null,
+  profile: null,
+  wallet: null,
+  isLoading: true,
+  isAdmin: false,
+};
+
+export const useAuth = () => {
+  const [state, setState] = useState<AuthState>(initialState);
+  const mountedRef = useRef(true);
+
+  const safeSetState = useCallback((updates: Partial<AuthState>) => {
+    if (mountedRef.current) {
+      setState(prev => ({ ...prev, ...updates }));
+    }
+  }, []);
+
   const loadUserData = useCallback(async (userId: string) => {
     try {
       const [profileRes, walletRes, roleRes] = await Promise.all([
@@ -33,51 +52,62 @@ export const useAuth = () => {
         supabase.from('user_roles').select('role').eq('user_id', userId).eq('role', 'admin').maybeSingle(),
       ]);
 
-      if (profileRes.data) {
-        setProfile(profileRes.data as Profile);
-      }
-      if (walletRes.data) {
-        setWallet(walletRes.data as Wallet);
-      }
-      setIsAdmin(!!roleRes.data);
+      safeSetState({
+        profile: profileRes.data as Profile | null,
+        wallet: walletRes.data as Wallet | null,
+        isAdmin: !!roleRes.data,
+      });
     } catch (error) {
       console.error('Error loading user data:', error);
     }
-  }, []);
+  }, [safeSetState]);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
+    mountedRef.current = true;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+        safeSetState({
+          session,
+          user: session?.user ?? null,
+        });
         
         if (session?.user) {
-          // Use setTimeout to avoid potential race conditions
-          setTimeout(() => loadUserData(session.user.id), 0);
+          setTimeout(() => {
+            if (mountedRef.current) {
+              loadUserData(session.user.id);
+            }
+          }, 0);
         } else {
-          setProfile(null);
-          setWallet(null);
+          safeSetState({
+            profile: null,
+            wallet: null,
+            isAdmin: false,
+          });
         }
-        setIsLoading(false);
+        safeSetState({ isLoading: false });
       }
     );
 
-    // THEN get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+      safeSetState({
+        session,
+        user: session?.user ?? null,
+      });
       if (session?.user) {
         loadUserData(session.user.id);
       }
-      setIsLoading(false);
+      safeSetState({ isLoading: false });
     });
 
-    return () => subscription.unsubscribe();
-  }, [loadUserData]);
+    return () => {
+      mountedRef.current = false;
+      subscription.unsubscribe();
+    };
+  }, [loadUserData, safeSetState]);
 
-  const signUp = async (email: string, password: string, displayName?: string) => {
-    setIsLoading(true);
+  const signUp = useCallback(async (email: string, password: string, displayName?: string) => {
+    safeSetState({ isLoading: true });
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -104,12 +134,12 @@ export const useAuth = () => {
       });
       return { data: null, error };
     } finally {
-      setIsLoading(false);
+      safeSetState({ isLoading: false });
     }
-  };
+  }, [safeSetState]);
 
-  const signIn = async (email: string, password: string) => {
-    setIsLoading(true);
+  const signIn = useCallback(async (email: string, password: string) => {
+    safeSetState({ isLoading: true });
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -132,17 +162,20 @@ export const useAuth = () => {
       });
       return { data: null, error };
     } finally {
-      setIsLoading(false);
+      safeSetState({ isLoading: false });
     }
-  };
+  }, [safeSetState]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
-      setProfile(null);
-      setWallet(null);
+      safeSetState({
+        user: null,
+        session: null,
+        profile: null,
+        wallet: null,
+        isAdmin: false,
+      });
       toast({
         title: "Sesión cerrada",
         description: "Has cerrado sesión correctamente.",
@@ -154,24 +187,24 @@ export const useAuth = () => {
         variant: "destructive",
       });
     }
-  };
+  }, [safeSetState]);
 
   const refreshWallet = useCallback(async () => {
-    if (!user) return;
+    if (!state.user) return;
     const { data } = await supabase
       .from('wallets')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', state.user.id)
       .maybeSingle();
     if (data) {
-      setWallet(data as Wallet);
+      safeSetState({ wallet: data as Wallet });
     }
-  }, [user]);
+  }, [state.user, safeSetState]);
 
   const deductCredit = useCallback(async (amount: number = 1, description?: string): Promise<boolean> => {
-    if (!user || !wallet) return false;
+    if (!state.user || !state.wallet) return false;
     
-    if (wallet.credits < amount) {
+    if (state.wallet.credits < amount) {
       toast({
         title: "Sin créditos",
         description: "No tienes suficientes créditos. Recarga tu wallet.",
@@ -183,39 +216,40 @@ export const useAuth = () => {
     try {
       const { error } = await supabase
         .from('wallets')
-        .update({ credits: wallet.credits - amount })
-        .eq('user_id', user.id);
+        .update({ credits: state.wallet.credits - amount })
+        .eq('user_id', state.user.id);
 
       if (error) throw error;
 
-      // Log the credit usage
       await supabase.from('credit_logs').insert({
-        user_id: user.id,
+        user_id: state.user.id,
         amount: -amount,
         action: 'message_sent',
         description: description || 'Mensaje enviado',
       });
 
-      setWallet(prev => prev ? { ...prev, credits: prev.credits - amount } : null);
+      safeSetState({ 
+        wallet: state.wallet ? { ...state.wallet, credits: state.wallet.credits - amount } : null 
+      });
       return true;
     } catch (error) {
       console.error('Error deducting credit:', error);
       return false;
     }
-  }, [user, wallet]);
+  }, [state.user, state.wallet, safeSetState]);
 
   return {
-    user,
-    session,
-    profile,
-    wallet,
-    isLoading,
-    isAdmin,
+    user: state.user,
+    session: state.session,
+    profile: state.profile,
+    wallet: state.wallet,
+    isLoading: state.isLoading,
+    isAdmin: state.isAdmin,
     signUp,
     signIn,
     signOut,
     refreshWallet,
     deductCredit,
-    isAuthenticated: !!session,
+    isAuthenticated: !!state.session,
   };
 };
