@@ -20,7 +20,7 @@ import {
 import { useProjectIntegrations, ProjectIntegration } from '@/hooks/useProjectIntegrations';
 
 interface SupabaseConnectorProps {
-  projectId: string;
+  projectId?: string;
   projectName?: string;
   compact?: boolean;
   onConnectionChange?: (connected: boolean) => void;
@@ -32,14 +32,14 @@ export const SupabaseConnector: React.FC<SupabaseConnectorProps> = ({
   compact = false,
   onConnectionChange,
 }) => {
-  const { integration, isLoading, isConnecting, connectSupabase, disconnectSupabase } = useProjectIntegrations(projectId);
+  const { integration, isLoading, isConnecting, connectSupabase, disconnectSupabase } = useProjectIntegrations(projectId || '');
   const [open, setOpen] = useState(false);
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [supabaseKey, setSupabaseKey] = useState('');
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
 
   const handleConnect = async () => {
-    if (!supabaseUrl || !supabaseKey) return;
+    if (!supabaseUrl || !supabaseKey || !projectId) return;
     
     const success = await connectSupabase(projectId, supabaseUrl, supabaseKey);
     if (success) {
@@ -51,6 +51,7 @@ export const SupabaseConnector: React.FC<SupabaseConnectorProps> = ({
   };
 
   const handleDisconnect = async () => {
+    if (!projectId) return;
     const success = await disconnectSupabase(projectId);
     if (success) {
       setShowDisconnectConfirm(false);

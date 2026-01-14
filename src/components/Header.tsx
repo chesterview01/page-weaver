@@ -59,8 +59,8 @@ const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode, currentCode, pr
           )}
 
           {/* GitHub Connector */}
-          {isAuthenticated && (
-            <GitHubConnector currentCode={typeof currentCode === 'string' ? currentCode : ''} />
+          {isAuthenticated && currentCode && (
+            <GitHubConnector currentCode={currentCode} />
           )}
 
           {/* Export dropdown */}
