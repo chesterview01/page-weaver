@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Database, Link, Unlink, Loader2, CheckCircle2, AlertCircle, ExternalLink, Key, Globe } from 'lucide-react';
+import { Database, Link, Unlink, Loader2, CheckCircle2, AlertCircle, ExternalLink, Key, Globe, TestTube2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +18,8 @@ import {
   AlertTitle,
 } from '@/components/ui/alert';
 import { useProjectIntegrations, ProjectIntegration } from '@/hooks/useProjectIntegrations';
+import { createClient } from '@supabase/supabase-js';
+import { toast } from '@/hooks/use-toast';
 
 interface SupabaseConnectorProps {
   projectId?: string;
@@ -37,6 +39,56 @@ export const SupabaseConnector: React.FC<SupabaseConnectorProps> = ({
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [supabaseKey, setSupabaseKey] = useState('');
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<'idle' | 'success' | 'error'>('idle');
+  const [testMessage, setTestMessage] = useState('');
+
+  // Test connection with direct SDK
+  const handleTestConnection = async () => {
+    if (!supabaseUrl || !supabaseKey) {
+      toast({
+        title: "Campos requeridos",
+        description: "Ingresa URL y Key de Supabase.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsTesting(true);
+    setTestResult('idle');
+    setTestMessage('');
+
+    try {
+      // Initialize client directly with SDK
+      const testClient = createClient(supabaseUrl, supabaseKey);
+      
+      // Try to make a simple query to validate connection
+      const { data, error } = await testClient.from('projects').select('id').limit(1);
+      
+      // Connection is valid even if table doesn't exist or is empty
+      if (error && !error.message.includes('does not exist') && !error.message.includes('permission denied')) {
+        throw new Error(error.message);
+      }
+
+      setTestResult('success');
+      setTestMessage('Conexión exitosa con Supabase');
+      toast({
+        title: "Conexión exitosa",
+        description: "Las credenciales de Supabase son válidas.",
+      });
+    } catch (error: any) {
+      console.error('Connection test failed:', error);
+      setTestResult('error');
+      setTestMessage(error.message || 'Error de conexión');
+      toast({
+        title: "Error de conexión",
+        description: error.message || "No se pudo conectar con Supabase.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const handleConnect = async () => {
     if (!supabaseUrl || !supabaseKey || !projectId) return;
@@ -46,6 +98,7 @@ export const SupabaseConnector: React.FC<SupabaseConnectorProps> = ({
       setOpen(false);
       setSupabaseUrl('');
       setSupabaseKey('');
+      setTestResult('idle');
       onConnectionChange?.(true);
     }
   };
@@ -95,6 +148,10 @@ export const SupabaseConnector: React.FC<SupabaseConnectorProps> = ({
           supabaseKey={supabaseKey}
           setSupabaseKey={setSupabaseKey}
           isConnecting={isConnecting}
+          isTesting={isTesting}
+          testResult={testResult}
+          testMessage={testMessage}
+          onTest={handleTestConnection}
           onConnect={handleConnect}
         />
       </Dialog>
@@ -108,7 +165,7 @@ export const SupabaseConnector: React.FC<SupabaseConnectorProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-green-500" />
-            <span className="font-medium text-green-600">Supabase conectado</span>
+            <span className="font-medium text-green-600">Conectado a Supabase</span>
           </div>
           <Dialog open={showDisconnectConfirm} onOpenChange={setShowDisconnectConfirm}>
             <DialogTrigger asChild>
@@ -167,6 +224,10 @@ export const SupabaseConnector: React.FC<SupabaseConnectorProps> = ({
         supabaseKey={supabaseKey}
         setSupabaseKey={setSupabaseKey}
         isConnecting={isConnecting}
+        isTesting={isTesting}
+        testResult={testResult}
+        testMessage={testMessage}
+        onTest={handleTestConnection}
         onConnect={handleConnect}
       />
     </Dialog>
@@ -181,6 +242,10 @@ const ConnectDialogContent: React.FC<{
   supabaseKey: string;
   setSupabaseKey: (value: string) => void;
   isConnecting: boolean;
+  isTesting: boolean;
+  testResult: 'idle' | 'success' | 'error';
+  testMessage: string;
+  onTest: () => void;
   onConnect: () => void;
 }> = ({
   projectName,
@@ -189,6 +254,10 @@ const ConnectDialogContent: React.FC<{
   supabaseKey,
   setSupabaseKey,
   isConnecting,
+  isTesting,
+  testResult,
+  testMessage,
+  onTest,
   onConnect,
 }) => (
   <DialogContent className="sm:max-w-[500px]">
@@ -227,7 +296,7 @@ const ConnectDialogContent: React.FC<{
       <div className="space-y-2">
         <Label htmlFor="supabase-url" className="flex items-center gap-2">
           <Globe className="h-4 w-4" />
-          Project URL
+          Project URL (SUPABASE_URL)
         </Label>
         <Input
           id="supabase-url"
@@ -240,7 +309,7 @@ const ConnectDialogContent: React.FC<{
       <div className="space-y-2">
         <Label htmlFor="supabase-key" className="flex items-center gap-2">
           <Key className="h-4 w-4" />
-          Anon Key (public)
+          Anon Key (SUPABASE_KEY)
         </Label>
         <Input
           id="supabase-key"
@@ -253,9 +322,41 @@ const ConnectDialogContent: React.FC<{
           Usa solo la clave anon (pública). Nunca uses la service_role key.
         </p>
       </div>
+
+      {/* Test result display */}
+      {testResult !== 'idle' && (
+        <Alert variant={testResult === 'success' ? 'default' : 'destructive'} className={testResult === 'success' ? 'border-green-500/50 bg-green-500/10' : ''}>
+          {testResult === 'success' ? (
+            <CheckCircle2 className="h-4 w-4 text-green-500" />
+          ) : (
+            <AlertCircle className="h-4 w-4" />
+          )}
+          <AlertDescription className={testResult === 'success' ? 'text-green-600' : ''}>
+            {testMessage}
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
 
-    <DialogFooter>
+    <DialogFooter className="flex-col sm:flex-row gap-2">
+      <Button 
+        variant="outline"
+        onClick={onTest}
+        disabled={!supabaseUrl || !supabaseKey || isTesting}
+        className="w-full sm:w-auto"
+      >
+        {isTesting ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            Validando...
+          </>
+        ) : (
+          <>
+            <TestTube2 className="h-4 w-4 mr-2" />
+            Probar conexión
+          </>
+        )}
+      </Button>
       <Button 
         onClick={onConnect} 
         disabled={!supabaseUrl || !supabaseKey || isConnecting}

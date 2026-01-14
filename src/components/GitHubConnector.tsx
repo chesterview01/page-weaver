@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Github, Loader2, CheckCircle2, AlertCircle, ExternalLink, Upload } from 'lucide-react';
+import { Github, Loader2, CheckCircle2, AlertCircle, ExternalLink, Upload, FolderGit2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
@@ -106,29 +106,84 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode }) => {
     }
   };
 
-  const getCodeString = (): string => {
-    if (!currentCode) return '';
-    if (typeof currentCode === 'string') return currentCode;
+  const getCodeFiles = (): { html: string; css: string; js: string } => {
+    if (!currentCode) return { html: '', css: '', js: '' };
     
-    // If it's a CodeOutput object, build the full HTML
-    const { html, css, js } = currentCode;
-    return `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chester Code IA Project</title>
-  <style>
-${css}
-  </style>
-</head>
-<body>
-${html}
-  <script>
-${js}
-  </script>
-</body>
-</html>`;
+    if (typeof currentCode === 'object' && 'html' in currentCode) {
+      return {
+        html: currentCode.html || '',
+        css: currentCode.css || '',
+        js: currentCode.js || '',
+      };
+    }
+    
+    // Parse from string
+    const codeString = String(currentCode);
+    const styleMatch = codeString.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+    const scriptMatch = codeString.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+    
+    return {
+      html: codeString,
+      css: styleMatch?.[1]?.trim() || '/* No styles */',
+      js: scriptMatch?.[1]?.trim() || '// No scripts',
+    };
+  };
+
+  // Direct GitHub API upload
+  const uploadFileToGitHub = async (
+    owner: string,
+    repo: string,
+    path: string,
+    content: string,
+    token: string,
+    message: string
+  ): Promise<boolean> => {
+    const base64Content = btoa(unescape(encodeURIComponent(content)));
+    
+    // First, try to get the file to check if it exists (for updates)
+    let sha: string | undefined;
+    try {
+      const getResponse = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github.v3+json',
+          },
+        }
+      );
+      if (getResponse.ok) {
+        const fileData = await getResponse.json();
+        sha = fileData.sha;
+      }
+    } catch {
+      // File doesn't exist, which is fine
+    }
+
+    // PUT the file
+    const response = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message,
+          content: base64Content,
+          ...(sha && { sha }),
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Error uploading to GitHub');
+    }
+
+    return true;
   };
 
   const handleUploadToGitHub = async () => {
@@ -141,8 +196,8 @@ ${js}
       return;
     }
 
-    const codeString = getCodeString();
-    if (!codeString) {
+    const { html, css, js } = getCodeFiles();
+    if (!html && !css && !js) {
       toast({
         title: "Error",
         description: "No hay código para subir.",
@@ -155,61 +210,35 @@ ${js}
     setUploadStatus('uploading');
     
     try {
-      // Extract CSS and JS from the code
-      let css = '';
-      let js = '';
-      let html = codeString;
-
-      if (typeof currentCode === 'object' && currentCode) {
-        css = currentCode.css || '';
-        js = currentCode.js || '';
-        html = codeString;
-      } else {
-        const styleMatch = codeString.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
-        const scriptMatch = codeString.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
-        css = styleMatch?.[1]?.trim() || '/* No styles */';
-        js = scriptMatch?.[1]?.trim() || '// No scripts';
-      }
-
       const files = [
         { path: 'index.html', content: html },
         { path: 'style.css', content: css },
         { path: 'script.js', content: js },
       ];
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/github-upload`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            owner: connection.github_username,
-            repo: connection.repository_name,
-            token: connection.personal_access_token,
-            files,
-            commitMessage: 'Update from Chester Code IA',
-          }),
-        }
-      );
+      const commitMessage = `Commit desde Chester Code IA - ${new Date().toLocaleString('es-ES')}`;
 
-      const result = await response.json();
+      // Upload each file directly to GitHub API
+      for (const file of files) {
+        await uploadFileToGitHub(
+          connection.github_username!,
+          connection.repository_name!,
+          file.path,
+          file.content,
+          connection.personal_access_token!,
+          commitMessage
+        );
+      }
 
-      if (result.success) {
-        setUploadStatus('success');
-        toast({
-          title: "¡Proyecto subido a GitHub!",
-          description: `${files.length} archivos subidos correctamente.`,
-        });
-        
-        // Open repo in new tab
-        if (connection.repository_url) {
-          window.open(connection.repository_url, '_blank');
-        }
-      } else {
-        throw new Error(result.error || 'Error al subir');
+      setUploadStatus('success');
+      toast({
+        title: "¡Proyecto subido a GitHub!",
+        description: `${files.length} archivos subidos correctamente.`,
+      });
+      
+      // Open repo in new tab
+      if (connection.repository_url) {
+        window.open(connection.repository_url, '_blank');
       }
     } catch (error) {
       console.error('Error uploading:', error);
@@ -238,10 +267,10 @@ ${js}
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Github className="h-5 w-5" />
-            Conectar con GitHub
+            Subir a GitHub
           </DialogTitle>
           <DialogDescription>
-            Configura tu repositorio para exportar proyectos
+            Configura tu repositorio y sube tu código con un clic
           </DialogDescription>
         </DialogHeader>
 
@@ -252,12 +281,12 @@ ${js}
         ) : (
           <div className="space-y-6 mt-4">
             <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Autenticación manual</AlertTitle>
+              <FolderGit2 className="h-4 w-4" />
+              <AlertTitle>Personal Access Token</AlertTitle>
               <AlertDescription className="text-xs">
-                GitHub OAuth no está disponible. Usa un Personal Access Token para exportar.
+                Necesitas un token con permisos <code className="bg-muted px-1 rounded">repo</code> para subir código.
                 <a
-                  href="https://github.com/settings/tokens/new"
+                  href="https://github.com/settings/tokens/new?scopes=repo&description=Chester%20Code%20IA"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 text-primary hover:underline mt-1"
@@ -286,6 +315,9 @@ ${js}
                   value={repoName}
                   onChange={(e) => setRepoName(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">
+                  El repositorio debe existir en GitHub antes de subir.
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -297,9 +329,6 @@ ${js}
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Necesita permisos: repo, workflow
-                </p>
               </div>
             </div>
 
@@ -308,7 +337,7 @@ ${js}
                 variant="outline"
                 className="flex-1"
                 onClick={handleSaveConnection}
-                disabled={isSaving}
+                disabled={isSaving || !username || !repoName || !token}
               >
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar'}
               </Button>
@@ -335,14 +364,14 @@ ${js}
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Subir código
+                    Subir a GitHub
                   </>
                 )}
               </Button>
             </div>
 
             {connection?.repository_url && (
-              <div className="p-3 rounded-lg bg-muted/50 border">
+              <div className="p-3 rounded-lg bg-muted/50 border border-border">
                 <div className="flex items-center gap-2 text-sm">
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
                   <span>Repositorio configurado:</span>

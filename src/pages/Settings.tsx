@@ -14,8 +14,8 @@ import { useSettings } from '@/hooks/useSettings';
 import { useProjects, Project, ProjectBuild } from '@/hooks/useProjects';
 import { IntegrationsPanel } from '@/components/IntegrationsPanel';
 import { SupabaseConnector } from '@/components/SupabaseConnector';
+import { ProjectsGrid } from '@/components/ProjectsGrid';
 import { toast } from '@/hooks/use-toast';
-// ProjectCard component for displaying individual projects with their builds
 const ProjectCard: React.FC<{
   project: Project;
   onOpen: () => void;
@@ -258,39 +258,31 @@ const Settings = () => {
             </TabsTrigger>
           </TabsList>
 
-          {/* Projects Tab */}
+          {/* Projects Tab - Now with modern grid */}
           <TabsContent value="projects" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Mis Proyectos</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <FolderOpen className="h-5 w-5 text-primary" />
+                  Mis Proyectos Guardados
+                </CardTitle>
                 <CardDescription>
-                  Gestiona tus proyectos guardados. Cada proyecto contiene los archivos HTML, CSS y JavaScript generados.
+                  Todos los proyectos guardados desde la tabla builds. Abre, restaura o elimina proyectos.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {projectsLoading ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Cargando proyectos...
-                  </div>
-                ) : projects.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p className="font-medium">No tienes proyectos guardados aún</p>
-                    <p className="text-sm mt-1">Crea tu primer proyecto en el editor y guárdalo.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {projects.map((project) => (
-                      <ProjectCard 
-                        key={project.id}
-                        project={project}
-                        onOpen={() => navigate(`/app?project=${project.id}`)}
-                        onDelete={() => deleteProject(project.id)}
-                        getProjectBuilds={getProjectBuilds}
-                      />
-                    ))}
-                  </div>
-                )}
+                <ProjectsGrid 
+                  onOpenBuild={(build) => {
+                    // Store build data in sessionStorage and navigate to editor
+                    sessionStorage.setItem('restoreBuild', JSON.stringify({
+                      html: build.html,
+                      css: build.css,
+                      js: build.js,
+                      label: build.label,
+                    }));
+                    navigate('/app');
+                  }}
+                />
               </CardContent>
             </Card>
           </TabsContent>
