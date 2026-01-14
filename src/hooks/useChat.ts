@@ -180,6 +180,45 @@ export const useChat = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const projectIdFromUrl = urlParams.get('project');
       
+      // Check for restore build from sessionStorage (from Settings page)
+      const restoreBuildData = sessionStorage.getItem('restoreBuild');
+      if (restoreBuildData) {
+        try {
+          const buildData = JSON.parse(restoreBuildData);
+          sessionStorage.removeItem('restoreBuild');
+          
+          const restoredCode: CodeOutput = {
+            html: buildData.html || '',
+            css: buildData.css || '',
+            js: buildData.js || '',
+          };
+          
+          setCurrentCode(restoredCode);
+          
+          const restoredVersion: Version = {
+            id: `restored-${Date.now()}`,
+            timestamp: new Date(),
+            label: buildData.label || 'Proyecto restaurado',
+            code: restoredCode,
+          };
+          
+          setVersions([restoredVersion]);
+          setCurrentVersion(restoredVersion.id);
+          
+          // Create new conversation for restored build
+          if (user) {
+            await createNewConversation();
+          }
+          
+          initializedRef.current = true;
+          setIsInitialized(true);
+          return;
+        } catch (error) {
+          console.error('Error restoring build:', error);
+          sessionStorage.removeItem('restoreBuild');
+        }
+      }
+      
       // If loading a specific project from URL, ignore cache
       if (projectIdFromUrl) {
         await loadProjectFromDatabase(projectIdFromUrl);
