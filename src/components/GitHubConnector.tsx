@@ -8,6 +8,7 @@ import { Github, Loader2, CheckCircle2, AlertCircle, ExternalLink, Upload } from
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { CodeOutput } from '@/types/chat';
 
 interface GitHubConnection {
   id: string;
@@ -18,7 +19,7 @@ interface GitHubConnection {
 }
 
 interface GitHubConnectorProps {
-  currentCode: string;
+  currentCode: string | CodeOutput | null;
 }
 
 const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode }) => {
@@ -28,6 +29,7 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
 
   const [username, setUsername] = useState('');
   const [repoName, setRepoName] = useState('');
@@ -104,6 +106,31 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode }) => {
     }
   };
 
+  const getCodeString = (): string => {
+    if (!currentCode) return '';
+    if (typeof currentCode === 'string') return currentCode;
+    
+    // If it's a CodeOutput object, build the full HTML
+    const { html, css, js } = currentCode;
+    return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chester Code IA Project</title>
+  <style>
+${css}
+  </style>
+</head>
+<body>
+${html}
+  <script>
+${js}
+  </script>
+</body>
+</html>`;
+  };
+
   const handleUploadToGitHub = async () => {
     if (!connection?.personal_access_token || !connection?.github_username || !connection?.repository_name) {
       toast({
@@ -114,7 +141,8 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode }) => {
       return;
     }
 
-    if (!currentCode) {
+    const codeString = getCodeString();
+    if (!codeString) {
       toast({
         title: "Error",
         description: "No hay código para subir.",
@@ -124,38 +152,77 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode }) => {
     }
 
     setIsUploading(true);
+    setUploadStatus('uploading');
+    
     try {
-      // Parse the current code to extract HTML, CSS, and JS
-      const htmlMatch = currentCode.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-      const styleMatch = currentCode.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
-      const scriptMatch = currentCode.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+      // Extract CSS and JS from the code
+      let css = '';
+      let js = '';
+      let html = codeString;
+
+      if (typeof currentCode === 'object' && currentCode) {
+        css = currentCode.css || '';
+        js = currentCode.js || '';
+        html = codeString;
+      } else {
+        const styleMatch = codeString.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+        const scriptMatch = codeString.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+        css = styleMatch?.[1]?.trim() || '/* No styles */';
+        js = scriptMatch?.[1]?.trim() || '// No scripts';
+      }
 
       const files = [
-        { path: 'index.html', content: currentCode },
-        { path: 'style.css', content: styleMatch?.[1] || '/* No styles */' },
-        { path: 'script.js', content: scriptMatch?.[1] || '// No scripts' },
+        { path: 'index.html', content: html },
+        { path: 'style.css', content: css },
+        { path: 'script.js', content: js },
       ];
 
-      // Note: In a real implementation, you would use the GitHub API here
-      // For now, we'll show instructions for manual upload
-      toast({
-        title: "Exportación lista",
-        description: "Descarga el ZIP y súbelo manualmente a tu repositorio, o usa GitHub Desktop.",
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/github-upload`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            owner: connection.github_username,
+            repo: connection.repository_name,
+            token: connection.personal_access_token,
+            files,
+            commitMessage: 'Update from Chester Code IA',
+          }),
+        }
+      );
 
-      // Open GitHub repo in new tab
-      if (connection.repository_url) {
-        window.open(connection.repository_url, '_blank');
+      const result = await response.json();
+
+      if (result.success) {
+        setUploadStatus('success');
+        toast({
+          title: "¡Proyecto subido a GitHub!",
+          description: `${files.length} archivos subidos correctamente.`,
+        });
+        
+        // Open repo in new tab
+        if (connection.repository_url) {
+          window.open(connection.repository_url, '_blank');
+        }
+      } else {
+        throw new Error(result.error || 'Error al subir');
       }
     } catch (error) {
       console.error('Error uploading:', error);
+      setUploadStatus('error');
       toast({
-        title: "Error",
-        description: "No se pudo subir a GitHub.",
+        title: "Error al subir",
+        description: error instanceof Error ? error.message : "No se pudo subir a GitHub.",
         variant: "destructive",
       });
     } finally {
       setIsUploading(false);
+      // Reset status after 3 seconds
+      setTimeout(() => setUploadStatus('idle'), 3000);
     }
   };
 
@@ -250,8 +317,21 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode }) => {
                 onClick={handleUploadToGitHub}
                 disabled={!connection?.personal_access_token || isUploading || !currentCode}
               >
-                {isUploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                {uploadStatus === 'uploading' ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Subiendo...
+                  </>
+                ) : uploadStatus === 'success' ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
+                    ¡Subido!
+                  </>
+                ) : uploadStatus === 'error' ? (
+                  <>
+                    <AlertCircle className="h-4 w-4 mr-2 text-destructive" />
+                    Error
+                  </>
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />

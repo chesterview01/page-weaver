@@ -91,12 +91,11 @@ const Index = () => {
           <div className="flex items-center justify-between p-2 border-b border-border bg-card/50">
             <span className="text-sm text-muted-foreground px-2">Vista previa</span>
             <div className="flex items-center gap-2">
-              {currentProjectId && (
-                <SupabaseConnector 
-                  projectId={currentProjectId} 
-                  compact 
-                />
-              )}
+              <SupabaseConnector 
+                projectId={currentProjectId || undefined} 
+                projectName="Mi Proyecto"
+                compact 
+              />
               <SaveProjectDialog 
                 onSave={saveToProject}
                 disabled={!lastBuildId}
