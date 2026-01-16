@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   FolderOpen, Trash2, ExternalLink, Eye, EyeOff, 
   Calendar, Clock, RotateCcw, Loader2, FileCode,
-  AlertTriangle
+  AlertTriangle, Globe, XCircle, Copy
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,6 @@ import {
   CardFooter,
   CardHeader,
 } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
@@ -36,6 +35,16 @@ interface Build {
   conversation_id: string;
 }
 
+interface Project {
+  id: string;
+  name: string;
+  is_published: boolean | null;
+  published_domain: string | null;
+  deployment_url: string | null;
+  deployment_id: string | null;
+  created_at: string;
+}
+
 interface ProjectsGridProps {
   onOpenBuild: (build: Build) => void;
 }
@@ -43,27 +52,41 @@ interface ProjectsGridProps {
 export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
   const navigate = useNavigate();
   const [builds, setBuilds] = useState<Build[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState<Build | null>(null);
   const [restoreConfirm, setRestoreConfirm] = useState<Build | null>(null);
+  const [unpublishConfirm, setUnpublishConfirm] = useState<Project | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
 
   useEffect(() => {
-    loadBuilds();
+    loadData();
   }, []);
 
-  const loadBuilds = async () => {
+  const loadData = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
+      
+      // Load builds
+      const { data: buildsData, error: buildsError } = await supabase
         .from('builds')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setBuilds(data || []);
+      if (buildsError) throw buildsError;
+      setBuilds(buildsData || []);
+
+      // Load projects with deployment info
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select('id, name, is_published, published_domain, deployment_url, deployment_id, created_at')
+        .order('updated_at', { ascending: false });
+
+      if (projectsError) throw projectsError;
+      setProjects(projectsData || []);
     } catch (error) {
-      console.error('Error loading builds:', error);
+      console.error('Error loading data:', error);
       toast({
         title: "Error",
         description: "No se pudieron cargar los proyectos.",
@@ -103,6 +126,48 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
     }
   };
 
+  const handleUnpublish = async (project: Project) => {
+    try {
+      setIsUnpublishing(true);
+      
+      // Call the edge function to delete from Vercel
+      if (project.deployment_id) {
+        const response = await supabase.functions.invoke('vercel-delete', {
+          body: {
+            projectId: project.id,
+            deploymentId: project.deployment_id,
+          },
+        });
+
+        if (response.error) {
+          console.error('Vercel delete error:', response.error);
+        }
+      }
+
+      // Update local state
+      setProjects(prev => prev.map(p => 
+        p.id === project.id 
+          ? { ...p, is_published: false, published_domain: null, deployment_url: null, deployment_id: null }
+          : p
+      ));
+      setUnpublishConfirm(null);
+      
+      toast({
+        title: "Publicación eliminada",
+        description: `"${project.name}" ya no está publicado.`,
+      });
+    } catch (error) {
+      console.error('Error unpublishing:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar la publicación.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUnpublishing(false);
+    }
+  };
+
   const handleOpen = (build: Build) => {
     onOpenBuild(build);
     toast({
@@ -122,6 +187,14 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
     navigate('/app');
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copiado",
+      description: "URL copiada al portapapeles",
+    });
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
@@ -135,6 +208,11 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  // Get project info for a build
+  const getProjectForBuild = (build: Build): Project | undefined => {
+    return projects.find(p => p.id === build.project_id);
   };
 
   if (isLoading) {
@@ -163,93 +241,142 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {builds.map((build) => (
-          <Card 
-            key={build.id} 
-            className="group hover:border-primary/50 transition-all duration-200 hover:shadow-lg hover:shadow-primary/5"
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-foreground truncate text-lg">
-                    {build.label}
-                  </h3>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge 
-                      variant={build.project_id ? "default" : "secondary"}
-                      className="text-xs"
-                    >
-                      {build.project_id ? (
-                        <>
-                          <Eye className="h-3 w-3 mr-1" />
-                          Publicado
-                        </>
-                      ) : (
-                        <>
-                          <EyeOff className="h-3 w-3 mr-1" />
-                          Borrador
-                        </>
-                      )}
-                    </Badge>
+        {builds.map((build) => {
+          const project = getProjectForBuild(build);
+          const isPublished = project?.is_published;
+          const publishedDomain = project?.published_domain;
+          const deploymentUrl = project?.deployment_url;
+
+          return (
+            <Card 
+              key={build.id} 
+              className="group hover:border-primary/50 transition-all duration-200 hover:shadow-lg hover:shadow-primary/5"
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-foreground truncate text-lg">
+                      {build.label}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge 
+                        variant={isPublished ? "default" : "secondary"}
+                        className={isPublished ? "bg-green-500/10 text-green-600 border-green-500/30" : ""}
+                      >
+                        {isPublished ? (
+                          <>
+                            <Eye className="h-3 w-3 mr-1" />
+                            Publicado
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="h-3 w-3 mr-1" />
+                            Borrador
+                          </>
+                        )}
+                      </Badge>
+                    </div>
+                  </div>
+                  <FileCode className="h-8 w-8 text-primary/30 group-hover:text-primary/50 transition-colors" />
+                </div>
+              </CardHeader>
+              
+              <CardContent className="pb-3">
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-3.5 w-3.5" />
+                    <span>{formatDate(build.created_at)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>{formatTime(build.created_at)}</span>
                   </div>
                 </div>
-                <FileCode className="h-8 w-8 text-primary/30 group-hover:text-primary/50 transition-colors" />
-              </div>
-            </CardHeader>
-            
-            <CardContent className="pb-3">
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-3.5 w-3.5" />
-                  <span>{formatDate(build.created_at)}</span>
+
+                {/* Published domain */}
+                {isPublished && publishedDomain && (
+                  <div className="mt-3 p-2 rounded bg-green-500/10 border border-green-500/30">
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-3.5 w-3.5 text-green-600" />
+                      <span className="text-xs font-medium text-green-600">Subdominio:</span>
+                    </div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <code className="text-xs font-mono text-green-700 truncate flex-1">
+                        {publishedDomain}
+                      </code>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => copyToClipboard(`https://${publishedDomain}`)}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => window.open(deploymentUrl || `https://${publishedDomain}`, '_blank')}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
+                {/* File preview */}
+                <div className="mt-3 p-2 rounded bg-muted/50 border border-border">
+                  <p className="text-xs text-muted-foreground font-medium mb-1">Archivos incluidos:</p>
+                  <div className="flex flex-wrap gap-1">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-background">index.html</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-background">style.css</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-background">script.js</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span>{formatTime(build.created_at)}</span>
-                </div>
-              </div>
+              </CardContent>
               
-              {/* File preview */}
-              <div className="mt-3 p-2 rounded bg-muted/50 border border-border">
-                <p className="text-xs text-muted-foreground font-medium mb-1">Archivos incluidos:</p>
-                <div className="flex flex-wrap gap-1">
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-background">index.html</span>
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-background">style.css</span>
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-background">script.js</span>
-                </div>
-              </div>
-            </CardContent>
-            
-            <CardFooter className="pt-0 gap-2">
-              <Button
-                variant="default"
-                size="sm"
-                className="flex-1"
-                onClick={() => handleOpen(build)}
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Abrir
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setRestoreConfirm(build)}
-                title="Restaurar versión"
-              >
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={() => setDeleteConfirm(build)}
-                title="Eliminar proyecto"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </CardFooter>
-          </Card>
-        ))}
+              <CardFooter className="pt-0 gap-2 flex-wrap">
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => handleOpen(build)}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Abrir
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRestoreConfirm(build)}
+                  title="Restaurar versión"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+                {isPublished && project && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-500/10"
+                    onClick={() => setUnpublishConfirm(project)}
+                    title="Eliminar publicación"
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => setDeleteConfirm(build)}
+                  title="Eliminar proyecto"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </CardFooter>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Delete Confirmation Dialog */}
@@ -310,6 +437,46 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
             <Button onClick={() => restoreConfirm && handleRestore(restoreConfirm)}>
               <RotateCcw className="h-4 w-4 mr-2" />
               Restaurar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unpublish Confirmation Dialog */}
+      <Dialog open={!!unpublishConfirm} onOpenChange={() => setUnpublishConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-orange-500" />
+              ¿Eliminar publicación?
+            </DialogTitle>
+            <DialogDescription>
+              Esto eliminará el deployment de Vercel y el proyecto "{unpublishConfirm?.name}" 
+              dejará de estar disponible en {unpublishConfirm?.published_domain}. 
+              ¿Deseas continuar?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUnpublishConfirm(null)}>
+              Cancelar
+            </Button>
+            <Button 
+              variant="default"
+              className="bg-orange-600 hover:bg-orange-700"
+              onClick={() => unpublishConfirm && handleUnpublish(unpublishConfirm)}
+              disabled={isUnpublishing}
+            >
+              {isUnpublishing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Eliminar publicación
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
