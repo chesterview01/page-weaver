@@ -168,6 +168,36 @@ export type Database = {
         }
         Relationships: []
       }
+      deployment_config: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          main_domain: string
+          updated_at: string | null
+          vercel_team_id: string | null
+          vercel_token: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          main_domain?: string
+          updated_at?: string | null
+          vercel_team_id?: string | null
+          vercel_token?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          main_domain?: string
+          updated_at?: string | null
+          vercel_team_id?: string | null
+          vercel_token?: string | null
+        }
+        Relationships: []
+      }
       github_connections: {
         Row: {
           created_at: string
@@ -391,33 +421,42 @@ export type Database = {
         Row: {
           created_at: string
           custom_domain: string | null
+          deployment_id: string | null
+          deployment_url: string | null
           description: string | null
           domain_status: string | null
           id: string
           is_published: boolean | null
           name: string
+          published_domain: string | null
           updated_at: string
           user_id: string | null
         }
         Insert: {
           created_at?: string
           custom_domain?: string | null
+          deployment_id?: string | null
+          deployment_url?: string | null
           description?: string | null
           domain_status?: string | null
           id?: string
           is_published?: boolean | null
           name: string
+          published_domain?: string | null
           updated_at?: string
           user_id?: string | null
         }
         Update: {
           created_at?: string
           custom_domain?: string | null
+          deployment_id?: string | null
+          deployment_url?: string | null
           description?: string | null
           domain_status?: string | null
           id?: string
           is_published?: boolean | null
           name?: string
+          published_domain?: string | null
           updated_at?: string
           user_id?: string | null
         }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, X, Loader2, CreditCard, Users, Settings2, DollarSign } from 'lucide-react';
+import { ArrowLeft, Check, X, Loader2, CreditCard, Users, Settings2, DollarSign, Server } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import DeploymentConfigSection from '@/components/DeploymentConfigSection';
 
 interface PaymentRequest {
   id: string;
@@ -288,7 +289,7 @@ const Admin: React.FC = () => {
 
       <main className="container mx-auto px-4 py-8 max-w-6xl">
         <Tabs defaultValue="payments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 bg-card">
+          <TabsList className="grid w-full grid-cols-3 bg-card">
             <TabsTrigger value="payments" className="flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
               Solicitudes de pago
@@ -296,6 +297,10 @@ const Admin: React.FC = () => {
             <TabsTrigger value="methods" className="flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
               Métodos de pago
+            </TabsTrigger>
+            <TabsTrigger value="deployment" className="flex items-center gap-2">
+              <Server className="h-4 w-4" />
+              Despliegue
             </TabsTrigger>
           </TabsList>
 
@@ -403,6 +408,11 @@ const Admin: React.FC = () => {
                 </Card>
               ))}
             </div>
+          </TabsContent>
+
+          {/* Deployment Config Tab */}
+          <TabsContent value="deployment">
+            <DeploymentConfigSection />
           </TabsContent>
         </Tabs>
       </main>
