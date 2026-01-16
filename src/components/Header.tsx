@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Code2, Settings, ExternalLink, LogIn, LogOut, Coins, CreditCard, User, Shield } from 'lucide-react';
+import { Code2, Settings, ExternalLink, LogIn, LogOut, Coins, CreditCard, User, Shield, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -23,9 +23,10 @@ interface HeaderProps {
   currentCode?: CodeOutput | null;
   projectName?: string;
   projectId?: string | null;
+  onNewProject?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode, currentCode, projectName, projectId }) => {
+const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode, currentCode, projectName, projectId, onNewProject }) => {
   const navigate = useNavigate();
   const { user, profile, wallet, isAuthenticated, signOut, isLoading, isAdmin } = useAuthContext();
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -50,6 +51,19 @@ const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode, currentCode, pr
         </div>
 
         <div className="flex items-center gap-2">
+          {/* New Project Button */}
+          {isAuthenticated && onNewProject && (
+            <Button
+              variant="glow"
+              size="sm"
+              onClick={onNewProject}
+              className="gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Nuevo Proyecto
+            </Button>
+          )}
+
           {/* Wallet display for authenticated users */}
           {isAuthenticated && wallet && (
             <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-muted/50 border border-border">

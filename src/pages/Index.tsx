@@ -73,6 +73,7 @@ const Index = () => {
         onOpenPreview={handleOpenPreview} 
         hasCode={!!currentCode} 
         currentCode={currentCode}
+        onNewProject={clearChat}
       />
       
       <main className="flex-1 flex overflow-hidden">
