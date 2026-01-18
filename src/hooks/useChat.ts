@@ -5,6 +5,7 @@ import { toast } from '@/hooks/use-toast';
 import { useSettings } from '@/hooks/useSettings';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useLocalPersistence } from '@/hooks/useLocalPersistence';
+import { generateThumbnail } from '@/utils/thumbnailGenerator';
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
@@ -504,6 +505,16 @@ export const useChat = () => {
 
               if (build) {
                 setLastBuildId(build.id);
+                
+                // Generate and save thumbnail in background
+                generateThumbnail(code.html, code.css, code.js).then(async (thumbnailUrl) => {
+                  if (thumbnailUrl) {
+                    await supabase
+                      .from('builds')
+                      .update({ thumbnail_url: thumbnailUrl })
+                      .eq('id', build.id);
+                  }
+                }).catch(console.error);
                 
                 // Show toast for auto-save
                 toast({

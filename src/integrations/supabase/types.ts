@@ -73,6 +73,7 @@ export type Database = {
           label: string
           message_id: string | null
           project_id: string | null
+          thumbnail_url: string | null
         }
         Insert: {
           conversation_id: string
@@ -84,6 +85,7 @@ export type Database = {
           label: string
           message_id?: string | null
           project_id?: string | null
+          thumbnail_url?: string | null
         }
         Update: {
           conversation_id?: string
@@ -95,6 +97,7 @@ export type Database = {
           label?: string
           message_id?: string | null
           project_id?: string | null
+          thumbnail_url?: string | null
         }
         Relationships: [
           {
