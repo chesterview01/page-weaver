@@ -19,10 +19,10 @@ import {
   Card,
   CardContent,
   CardFooter,
-  CardHeader,
 } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { deleteThumbnail } from '@/utils/thumbnailGenerator';
 
 interface Build {
   id: string;
@@ -33,6 +33,7 @@ interface Build {
   created_at: string;
   project_id: string | null;
   conversation_id: string;
+  thumbnail_url: string | null;
 }
 
 interface Project {
@@ -68,7 +69,6 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
     try {
       setIsLoading(true);
       
-      // Load builds
       const { data: buildsData, error: buildsError } = await supabase
         .from('builds')
         .select('*')
@@ -77,7 +77,6 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
       if (buildsError) throw buildsError;
       setBuilds(buildsData || []);
 
-      // Load projects with deployment info
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
         .select('id, name, is_published, published_domain, deployment_url, deployment_id, created_at')
@@ -100,6 +99,12 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
   const handleDelete = async (build: Build) => {
     try {
       setIsDeleting(true);
+      
+      // Delete thumbnail if exists
+      if (build.thumbnail_url) {
+        await deleteThumbnail(build.thumbnail_url);
+      }
+      
       const { error } = await supabase
         .from('builds')
         .delete()
@@ -130,7 +135,6 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
     try {
       setIsUnpublishing(true);
       
-      // Call the edge function to delete from Vercel
       if (project.deployment_id) {
         const response = await supabase.functions.invoke('vercel-delete', {
           body: {
@@ -144,7 +148,6 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
         }
       }
 
-      // Update local state
       setProjects(prev => prev.map(p => 
         p.id === project.id 
           ? { ...p, is_published: false, published_domain: null, deployment_url: null, deployment_id: null }
@@ -210,7 +213,6 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
     });
   };
 
-  // Get project info for a build
   const getProjectForBuild = (build: Build): Project | undefined => {
     return projects.find(p => p.id === build.project_id);
   };
@@ -250,44 +252,56 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
           return (
             <Card 
               key={build.id} 
-              className="group hover:border-primary/50 transition-all duration-200 hover:shadow-lg hover:shadow-primary/5"
+              className="group overflow-hidden hover:border-primary/50 transition-all duration-200 hover:shadow-lg hover:shadow-primary/5"
             >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-foreground truncate text-lg">
-                      {build.label}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Badge 
-                        variant={isPublished ? "default" : "secondary"}
-                        className={isPublished ? "bg-green-500/10 text-green-600 border-green-500/30" : ""}
-                      >
-                        {isPublished ? (
-                          <>
-                            <Eye className="h-3 w-3 mr-1" />
-                            Publicado
-                          </>
-                        ) : (
-                          <>
-                            <EyeOff className="h-3 w-3 mr-1" />
-                            Borrador
-                          </>
-                        )}
-                      </Badge>
-                    </div>
+              {/* Thumbnail */}
+              <div className="relative aspect-video bg-muted overflow-hidden">
+                {build.thumbnail_url ? (
+                  <img
+                    src={build.thumbnail_url}
+                    alt={`Preview de ${build.label}`}
+                    className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">
+                    <FileCode className="w-12 h-12 text-muted-foreground/50" />
                   </div>
-                  <FileCode className="h-8 w-8 text-primary/30 group-hover:text-primary/50 transition-colors" />
+                )}
+                
+                {/* Status Badge */}
+                <div className="absolute top-2 right-2">
+                  <Badge 
+                    variant={isPublished ? "default" : "secondary"}
+                    className={isPublished 
+                      ? "bg-green-500/90 hover:bg-green-500 text-white" 
+                      : "bg-muted-foreground/20 text-muted-foreground"
+                    }
+                  >
+                    {isPublished ? (
+                      <>
+                        <Eye className="w-3 h-3 mr-1" />
+                        Publicado
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="w-3 h-3 mr-1" />
+                        Borrador
+                      </>
+                    )}
+                  </Badge>
                 </div>
-              </CardHeader>
+              </div>
               
-              <CardContent className="pb-3">
+              <CardContent className="p-4">
+                <h3 className="font-semibold text-foreground truncate text-lg mb-2">
+                  {build.label}
+                </h3>
                 <div className="space-y-1 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-3.5 w-3.5" />
                     <span>{formatDate(build.created_at)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
+                    <span className="mx-1">•</span>
                     <Clock className="h-3.5 w-3.5" />
                     <span>{formatTime(build.created_at)}</span>
                   </div>
@@ -323,19 +337,9 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
                     </div>
                   </div>
                 )}
-                
-                {/* File preview */}
-                <div className="mt-3 p-2 rounded bg-muted/50 border border-border">
-                  <p className="text-xs text-muted-foreground font-medium mb-1">Archivos incluidos:</p>
-                  <div className="flex flex-wrap gap-1">
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-background">index.html</span>
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-background">style.css</span>
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-background">script.js</span>
-                  </div>
-                </div>
               </CardContent>
               
-              <CardFooter className="pt-0 gap-2 flex-wrap">
+              <CardFooter className="p-4 pt-0 gap-2 flex-wrap">
                 <Button
                   variant="default"
                   size="sm"
