@@ -5,6 +5,7 @@ import PreviewPanel from '@/components/PreviewPanel';
 import VersionPanel from '@/components/VersionPanel';
 import SaveProjectDialog from '@/components/SaveProjectDialog';
 import AuthModal from '@/components/AuthModal';
+import PricingModal from '@/components/PricingModal';
 import { SupabaseConnector } from '@/components/SupabaseConnector';
 import { useChat } from '@/hooks/useChat';
 import { useSettings } from '@/hooks/useSettings';
@@ -32,6 +33,7 @@ const Index = () => {
   const { openPreview, updatePreview, isPreviewOpen } = usePreviewWindow();
   const { isAuthenticated, wallet } = useAuthContext();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
 
   // Auto-open preview in new tab when code changes (if setting enabled)
   useEffect(() => {
@@ -57,7 +59,7 @@ const Index = () => {
     }
 
     if (wallet && wallet.credits < 1) {
-      // The useChat hook will handle this, but we can show a message
+      setShowPricingModal(true);
       return;
     }
 
@@ -120,6 +122,7 @@ const Index = () => {
       </main>
 
       <AuthModal open={showAuthPrompt} onOpenChange={setShowAuthPrompt} />
+      <PricingModal open={showPricingModal} onOpenChange={setShowPricingModal} />
     </div>
   );
 };

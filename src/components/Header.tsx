@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Code2, Settings, ExternalLink, LogIn, LogOut, Coins, CreditCard, User, Shield, Plus } from 'lucide-react';
+import { Terminal, Settings, ExternalLink, LogIn, LogOut, Coins, CreditCard, User, Shield, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import AuthModal from '@/components/AuthModal';
 import ExportDropdown from '@/components/ExportDropdown';
 import GitHubConnector from '@/components/GitHubConnector';
 import PublishDialog from '@/components/PublishDialog';
+import RecentProjects from '@/components/RecentProjects';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { CodeOutput } from '@/types/chat';
 
@@ -41,7 +42,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode, currentCode, pr
       <header className="flex items-center justify-between h-14 px-4 border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg">
-            <Code2 className="w-5 h-5 text-primary-foreground" />
+            <Terminal className="w-5 h-5 text-primary-foreground" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-foreground tracking-tight">
@@ -63,6 +64,9 @@ const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode, currentCode, pr
               Nuevo Proyecto
             </Button>
           )}
+
+          {/* Recent Projects */}
+          {isAuthenticated && <RecentProjects />}
 
           {/* Wallet display for authenticated users */}
           {isAuthenticated && wallet && (
