@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   FolderOpen, Trash2, ExternalLink, Eye, EyeOff, 
   Calendar, Clock, RotateCcw, Loader2, FileCode,
-  AlertTriangle, Globe, XCircle, Copy
+  AlertTriangle, Globe, XCircle, Copy, Github
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +23,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { deleteThumbnail } from '@/utils/thumbnailGenerator';
+import { GitHubUploadDialog } from '@/components/GitHubUploadDialog';
 
 interface Build {
   id: string;
@@ -60,6 +61,7 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
   const [unpublishConfirm, setUnpublishConfirm] = useState<Project | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUnpublishing, setIsUnpublishing] = useState(false);
+  const [githubUploadBuild, setGithubUploadBuild] = useState<Build | null>(null);
 
   useEffect(() => {
     loadData();
@@ -352,6 +354,14 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => setGithubUploadBuild(build)}
+                  title="Subir a GitHub"
+                >
+                  <Github className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setRestoreConfirm(build)}
                   title="Restaurar versión"
                 >
@@ -485,6 +495,16 @@ export const ProjectsGrid: React.FC<ProjectsGridProps> = ({ onOpenBuild }) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* GitHub Upload Dialog */}
+      {githubUploadBuild && (
+        <GitHubUploadDialog
+          open={!!githubUploadBuild}
+          onOpenChange={(open) => !open && setGithubUploadBuild(null)}
+          buildId={githubUploadBuild.id}
+          buildLabel={githubUploadBuild.label}
+        />
+      )}
     </>
   );
 };

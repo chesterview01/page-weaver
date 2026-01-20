@@ -2,3 +2,18 @@ project_id = "bjoygscbgzzvhxjnrrsj"
 
 [functions.chat]
 verify_jwt = false
+
+[functions.github-auth-callback]
+verify_jwt = false
+
+[functions.github-upload-project]
+verify_jwt = false
+
+[functions.github-upload]
+verify_jwt = false
+
+[functions.vercel-deploy]
+verify_jwt = false
+
+[functions.vercel-delete]
+verify_jwt = false
