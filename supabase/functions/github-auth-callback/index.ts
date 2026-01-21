@@ -19,21 +19,20 @@ serve(async (req) => {
 
     console.log("GitHub OAuth callback received", { code: !!code, userId: !!userId });
 
+    // Get frontend URL from environment or use the referrer
+    const frontendUrl = Deno.env.get("FRONTEND_URL") || "https://id-preview--67f19b4b-2350-4ef4-8e5c-d38ad52ce54d.lovable.app";
+
     if (!code) {
       return new Response(null, {
         status: 302,
-        headers: {
-          Location: `${Deno.env.get("FRONTEND_URL") || "https://id-preview--67f19b4b-2350-4ef4-8e5c-d38ad52ce54d.lovable.app"}/settings?error=no_code`,
-        },
+        headers: { Location: `${frontendUrl}/settings?error=no_code` },
       });
     }
 
     if (!userId) {
       return new Response(null, {
         status: 302,
-        headers: {
-          Location: `${Deno.env.get("FRONTEND_URL") || "https://id-preview--67f19b4b-2350-4ef4-8e5c-d38ad52ce54d.lovable.app"}/settings?error=no_state`,
-        },
+        headers: { Location: `${frontendUrl}/settings?error=no_state` },
       });
     }
 
@@ -41,12 +40,10 @@ serve(async (req) => {
     const clientSecret = Deno.env.get("GITHUB_CLIENT_SECRET");
 
     if (!clientId || !clientSecret) {
-      console.error("Missing GitHub OAuth credentials");
+      console.error("Missing GitHub OAuth credentials", { hasClientId: !!clientId, hasClientSecret: !!clientSecret });
       return new Response(null, {
         status: 302,
-        headers: {
-          Location: `${Deno.env.get("FRONTEND_URL") || "https://id-preview--67f19b4b-2350-4ef4-8e5c-d38ad52ce54d.lovable.app"}/settings?error=config_error`,
-        },
+        headers: { Location: `${frontendUrl}/settings?error=config_error` },
       });
     }
 
@@ -66,15 +63,17 @@ serve(async (req) => {
     });
 
     const tokenData = await tokenResponse.json();
-    console.log("Token response received", { hasAccessToken: !!tokenData.access_token });
+    console.log("Token response received", { 
+      hasAccessToken: !!tokenData.access_token,
+      error: tokenData.error,
+      errorDescription: tokenData.error_description 
+    });
 
     if (!tokenData.access_token) {
       console.error("Failed to get access token:", tokenData);
       return new Response(null, {
         status: 302,
-        headers: {
-          Location: `${Deno.env.get("FRONTEND_URL") || "https://id-preview--67f19b4b-2350-4ef4-8e5c-d38ad52ce54d.lovable.app"}/settings?error=token_error`,
-        },
+        headers: { Location: `${frontendUrl}/settings?error=token_error` },
       });
     }
 
@@ -103,14 +102,19 @@ serve(async (req) => {
       .eq("user_id", userId)
       .single();
 
+    // Ensure username doesn't have @ prefix
+    const cleanUsername = userData.login?.replace(/^@/, '') || '';
+    console.log("Saving GitHub connection for user:", cleanUsername);
+
     if (existingConnection) {
       // Update existing connection
       const { error: updateError } = await supabase
         .from("github_connections")
         .update({
           personal_access_token: tokenData.access_token,
-          github_username: userData.login,
-          repository_url: `https://github.com/${userData.login}`,
+          github_username: cleanUsername,
+          repository_url: null, // Reset repo URL, will be set on first upload
+          repository_name: null,
           updated_at: new Date().toISOString(),
         })
         .eq("user_id", userId);
@@ -126,8 +130,7 @@ serve(async (req) => {
         .insert({
           user_id: userId,
           personal_access_token: tokenData.access_token,
-          github_username: userData.login,
-          repository_url: `https://github.com/${userData.login}`,
+          github_username: cleanUsername,
         });
 
       if (insertError) {
@@ -141,24 +144,21 @@ serve(async (req) => {
       action: "github_oauth_connect",
       entity_type: "github_connection",
       entity_id: userId,
-      details: { github_username: userData.login },
+      details: { github_username: cleanUsername },
     });
 
-    console.log("GitHub connection saved successfully");
+    console.log("GitHub connection saved successfully for:", cleanUsername);
 
     return new Response(null, {
       status: 302,
-      headers: {
-        Location: `${Deno.env.get("FRONTEND_URL") || "https://id-preview--67f19b4b-2350-4ef4-8e5c-d38ad52ce54d.lovable.app"}/settings?github=connected`,
-      },
+      headers: { Location: `${frontendUrl}/settings?github=connected` },
     });
   } catch (error) {
     console.error("Error in GitHub OAuth callback:", error);
+    const frontendUrl = Deno.env.get("FRONTEND_URL") || "https://id-preview--67f19b4b-2350-4ef4-8e5c-d38ad52ce54d.lovable.app";
     return new Response(null, {
       status: 302,
-      headers: {
-        Location: `${Deno.env.get("FRONTEND_URL") || "https://id-preview--67f19b4b-2350-4ef4-8e5c-d38ad52ce54d.lovable.app"}/settings?error=server_error`,
-      },
+      headers: { Location: `${frontendUrl}/settings?error=server_error` },
     });
   }
 });

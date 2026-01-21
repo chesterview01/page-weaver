@@ -69,14 +69,20 @@ serve(async (req) => {
       );
     }
 
-    const { personal_access_token: accessToken, github_username: owner } = connection;
+    const { personal_access_token: accessToken, github_username } = connection;
+
+    // Clean the username - remove @ if present
+    const owner = github_username?.replace(/^@/, '') || '';
 
     if (!accessToken || !owner) {
+      console.error("GitHub connection incomplete:", { hasToken: !!accessToken, hasOwner: !!owner });
       return new Response(
-        JSON.stringify({ error: "GitHub connection incomplete" }),
+        JSON.stringify({ error: "GitHub connection incomplete. Please reconnect your GitHub account." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    console.log("Using GitHub account:", owner);
 
     // Get build data
     const { data: build, error: buildError } = await supabaseAdmin
