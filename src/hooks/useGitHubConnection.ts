@@ -70,8 +70,45 @@ export const useGitHubConnection = () => {
 
     const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}`;
     
-    window.location.href = authUrl;
-  }, [user]);
+    // Open in a new window/tab to avoid iframe restrictions
+    const width = 600;
+    const height = 700;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    
+    const popup = window.open(
+      authUrl,
+      'github-oauth',
+      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+
+    // If popup was blocked, try opening in new tab
+    if (!popup || popup.closed) {
+      window.open(authUrl, '_blank');
+    }
+
+    // Poll for completion (when the popup redirects back and closes)
+    const checkInterval = setInterval(() => {
+      try {
+        if (popup?.closed) {
+          clearInterval(checkInterval);
+          setIsConnecting(false);
+          // Reload connection after popup closes
+          setTimeout(() => {
+            loadConnection();
+          }, 1000);
+        }
+      } catch (e) {
+        // Cross-origin access error, ignore
+      }
+    }, 500);
+
+    // Cleanup after 5 minutes
+    setTimeout(() => {
+      clearInterval(checkInterval);
+      setIsConnecting(false);
+    }, 300000);
+  }, [user, loadConnection]);
 
   const disconnect = useCallback(async () => {
     if (!user || !connection) return false;
