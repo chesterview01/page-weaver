@@ -12,8 +12,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Get frontend URL - IMPORTANT: This must be your actual app URL
-  const frontendUrl = Deno.env.get("FRONTEND_URL") || "https://id-preview--67f19b4b-2350-4ef4-8e5c-d38ad52ce54d.lovable.app";
+  // Frontend URL for redirect after OAuth
+  const frontendUrl = "https://chestercodeia.vercel.app";
 
   try {
     const url = new URL(req.url);
