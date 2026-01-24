@@ -67,58 +67,59 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ code, project }) => {
       {/* Toolbar */}
       <div className="flex items-center justify-between p-3 border-b border-border">
         <div className="flex items-center gap-1">
-          {hasProject && (
-            <>
-              <Button
-                variant={viewMode === 'preview' ? 'secondary' : 'ghost'}
-                size="sm"
-                className="h-8 gap-1.5"
-                onClick={() => setViewMode('preview')}
-              >
-                <Eye className="w-4 h-4" />
-                <span className="text-xs">Vista previa</span>
-              </Button>
-              <Button
-                variant={viewMode === 'files' ? 'secondary' : 'ghost'}
-                size="sm"
-                className="h-8 gap-1.5"
-                onClick={() => setViewMode('files')}
-              >
-                <FolderTree className="w-4 h-4" />
-                <span className="text-xs">Archivos</span>
-              </Button>
-              <div className="w-px h-6 bg-border mx-2" />
-            </>
-          )}
+          <Button
+            variant={viewMode === 'preview' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => setViewMode('preview')}
+          >
+            <Eye className="w-4 h-4" />
+            <span className="text-xs">Vista previa</span>
+          </Button>
+          <Button
+            variant={viewMode === 'files' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => setViewMode('files')}
+            disabled={!hasProject}
+            title={!hasProject ? 'Genera una página para ver los archivos' : 'Ver archivos del proyecto'}
+          >
+            <FolderTree className="w-4 h-4" />
+            <span className="text-xs">Archivos</span>
+            {hasProject && (
+              <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-primary/20 text-primary rounded-full">
+                {project?.files.length}
+              </span>
+            )}
+          </Button>
+          <div className="w-px h-6 bg-border mx-2" />
           
-          {viewMode === 'preview' && (
-            <>
-              <Button
-                variant={viewport === 'desktop' ? 'secondary' : 'ghost'}
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setViewport('desktop')}
-              >
-                <Monitor className="w-4 h-4" />
-              </Button>
-              <Button
-                variant={viewport === 'tablet' ? 'secondary' : 'ghost'}
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setViewport('tablet')}
-              >
-                <Tablet className="w-4 h-4" />
-              </Button>
-              <Button
-                variant={viewport === 'mobile' ? 'secondary' : 'ghost'}
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setViewport('mobile')}
-              >
-                <Smartphone className="w-4 h-4" />
-              </Button>
-            </>
-          )}
+          <>
+            <Button
+              variant={viewport === 'desktop' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setViewport('desktop')}
+            >
+              <Monitor className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewport === 'tablet' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setViewport('tablet')}
+            >
+              <Tablet className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewport === 'mobile' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setViewport('mobile')}
+            >
+              <Smartphone className="w-4 h-4" />
+            </Button>
+          </>
         </div>
 
         <div className="flex items-center gap-2">
