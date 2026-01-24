@@ -12,6 +12,12 @@ verify_jwt = false
 [functions.github-upload]
 verify_jwt = false
 
+[functions.github-status]
+verify_jwt = false
+
+[functions.github-sync]
+verify_jwt = false
+
 [functions.vercel-deploy]
 verify_jwt = false
 

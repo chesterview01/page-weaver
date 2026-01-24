@@ -13,16 +13,35 @@ interface GitHubConnection {
   updated_at: string;
 }
 
+interface GitHubStatus {
+  connected: boolean;
+  username: string | null;
+  organizations: string[] | null;
+  repository: {
+    name: string;
+    url: string;
+  } | null;
+}
+
+interface ProjectFile {
+  path: string;
+  content: string;
+}
+
 export const useGitHubConnection = () => {
   const { user } = useAuthContext();
   const [connection, setConnection] = useState<GitHubConnection | null>(null);
+  const [status, setStatus] = useState<GitHubStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
+  // Load connection from database (basic info)
   const loadConnection = useCallback(async () => {
     if (!user) {
       setConnection(null);
+      setStatus(null);
       setIsLoading(false);
       return;
     }
@@ -40,10 +59,42 @@ export const useGitHubConnection = () => {
       }
 
       setConnection(data || null);
+      
+      // If we have a connection, also set the status
+      if (data) {
+        setStatus({
+          connected: true,
+          username: data.github_username,
+          organizations: [],
+          repository: data.repository_name ? {
+            name: data.repository_name,
+            url: data.repository_url || '',
+          } : null,
+        });
+      } else {
+        setStatus({ connected: false, username: null, organizations: null, repository: null });
+      }
     } catch (error) {
       console.error('Error loading GitHub connection:', error);
     } finally {
       setIsLoading(false);
+    }
+  }, [user]);
+
+  // Fetch status from edge function (for more detailed info)
+  const fetchStatus = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('github-status', {
+        method: 'GET',
+      });
+
+      if (!error && data) {
+        setStatus(data);
+      }
+    } catch (error) {
+      console.error('Error fetching GitHub status:', error);
     }
   }, [user]);
 
@@ -65,12 +116,14 @@ export const useGitHubConnection = () => {
     
     const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || 'Ov23liWq6ozPxlRo6WHq';
     const redirectUri = `https://bjoygscbgzzvhxjnrrsj.supabase.co/functions/v1/github-auth-callback`;
-    const scope = 'repo';
+    const scope = 'repo user';
     const state = user.id; // Pass user ID as state for callback
 
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}`;
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}`;
     
-    // Open in a new window/tab to avoid iframe restrictions
+    console.log('Opening GitHub OAuth with redirect:', redirectUri);
+    
+    // Open in a popup window
     const width = 600;
     const height = 700;
     const left = window.screenX + (window.outerWidth - width) / 2;
@@ -130,6 +183,7 @@ export const useGitHubConnection = () => {
       });
 
       setConnection(null);
+      setStatus({ connected: false, username: null, organizations: null, repository: null });
       
       toast({
         title: "GitHub desconectado",
@@ -148,6 +202,67 @@ export const useGitHubConnection = () => {
     }
   }, [user, connection]);
 
+  // Sync project files to GitHub
+  const syncProject = useCallback(async (
+    repoName: string,
+    files: ProjectFile[],
+    options?: {
+      isNewRepo?: boolean;
+      isPrivate?: boolean;
+      commitMessage?: string;
+    }
+  ) => {
+    if (!user || !connection) {
+      toast({
+        title: "Error",
+        description: "Debes conectar tu cuenta de GitHub primero",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    try {
+      setIsSyncing(true);
+
+      const { data, error } = await supabase.functions.invoke('github-sync', {
+        body: {
+          repoName,
+          files,
+          isNewRepo: options?.isNewRepo ?? false,
+          isPrivate: options?.isPrivate ?? false,
+          commitMessage: options?.commitMessage ?? `Update from Chester Code IA - ${new Date().toISOString()}`,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast({
+          title: "¡Sincronizado!",
+          description: `Proyecto sincronizado con ${data.repoUrl}`,
+        });
+
+        // Reload connection to get updated repo info
+        await loadConnection();
+
+        return data;
+      } else {
+        throw new Error(data.error || 'Error desconocido');
+      }
+    } catch (error: any) {
+      console.error('Error syncing to GitHub:', error);
+      toast({
+        title: "Error al sincronizar",
+        description: error.message || "No se pudo sincronizar el proyecto con GitHub",
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [user, connection, loadConnection]);
+
+  // Legacy upload function (kept for backward compatibility)
   const uploadToGitHub = useCallback(async (
     buildIdOrCode: string | { html: string; css: string; js: string; projectName?: string }, 
     repoName: string, 
@@ -212,13 +327,17 @@ export const useGitHubConnection = () => {
 
   return {
     connection,
+    status,
     isLoading,
     isConnecting,
     isUploading,
-    isConnected: !!connection?.github_username,
+    isSyncing,
+    isConnected: !!connection?.github_username || (status?.connected ?? false),
     initiateOAuth,
     disconnect,
     uploadToGitHub,
+    syncProject,
     reloadConnection: loadConnection,
+    fetchStatus,
   };
 };

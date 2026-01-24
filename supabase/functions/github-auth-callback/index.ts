@@ -12,17 +12,22 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Get frontend URL - IMPORTANT: This must be your actual app URL
+  const frontendUrl = Deno.env.get("FRONTEND_URL") || "https://id-preview--67f19b4b-2350-4ef4-8e5c-d38ad52ce54d.lovable.app";
+
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
     const userId = url.searchParams.get("state"); // We pass user_id as state
 
-    console.log("GitHub OAuth callback received", { code: !!code, userId: !!userId });
-
-    // Get frontend URL from environment or use the referrer
-    const frontendUrl = Deno.env.get("FRONTEND_URL") || "https://id-preview--67f19b4b-2350-4ef4-8e5c-d38ad52ce54d.lovable.app";
+    console.log("GitHub OAuth callback received:", { 
+      hasCode: !!code, 
+      hasUserId: !!userId,
+      url: req.url 
+    });
 
     if (!code) {
+      console.error("No code parameter received");
       return new Response(null, {
         status: 302,
         headers: { Location: `${frontendUrl}/settings?error=no_code` },
@@ -30,6 +35,7 @@ serve(async (req) => {
     }
 
     if (!userId) {
+      console.error("No state/userId parameter received");
       return new Response(null, {
         status: 302,
         headers: { Location: `${frontendUrl}/settings?error=no_state` },
@@ -40,7 +46,10 @@ serve(async (req) => {
     const clientSecret = Deno.env.get("GITHUB_CLIENT_SECRET");
 
     if (!clientId || !clientSecret) {
-      console.error("Missing GitHub OAuth credentials", { hasClientId: !!clientId, hasClientSecret: !!clientSecret });
+      console.error("Missing GitHub OAuth credentials in environment", { 
+        hasClientId: !!clientId, 
+        hasClientSecret: !!clientSecret 
+      });
       return new Response(null, {
         status: 302,
         headers: { Location: `${frontendUrl}/settings?error=config_error` },
@@ -63,7 +72,7 @@ serve(async (req) => {
     });
 
     const tokenData = await tokenResponse.json();
-    console.log("Token response received", { 
+    console.log("Token response received:", { 
       hasAccessToken: !!tokenData.access_token,
       error: tokenData.error,
       errorDescription: tokenData.error_description 
@@ -87,13 +96,25 @@ serve(async (req) => {
       },
     });
 
-    const userData = await userResponse.json();
-    console.log("GitHub user info received", { login: userData.login });
+    if (!userResponse.ok) {
+      console.error("Failed to fetch user info:", await userResponse.text());
+      return new Response(null, {
+        status: 302,
+        headers: { Location: `${frontendUrl}/settings?error=user_fetch_error` },
+      });
+    }
 
-    // Save to database
+    const userData = await userResponse.json();
+    console.log("GitHub user info received:", { login: userData.login, id: userData.id });
+
+    // Save to database using service role key
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Clean username (remove @ if present)
+    const cleanUsername = userData.login?.replace(/^@/, '') || '';
+    console.log("Saving GitHub connection for user:", cleanUsername);
 
     // Check if connection already exists
     const { data: existingConnection } = await supabase
@@ -102,10 +123,6 @@ serve(async (req) => {
       .eq("user_id", userId)
       .single();
 
-    // Ensure username doesn't have @ prefix
-    const cleanUsername = userData.login?.replace(/^@/, '') || '';
-    console.log("Saving GitHub connection for user:", cleanUsername);
-
     if (existingConnection) {
       // Update existing connection
       const { error: updateError } = await supabase
@@ -113,7 +130,7 @@ serve(async (req) => {
         .update({
           personal_access_token: tokenData.access_token,
           github_username: cleanUsername,
-          repository_url: null, // Reset repo URL, will be set on first upload
+          repository_url: null, // Reset repo URL, will be set on first sync
           repository_name: null,
           updated_at: new Date().toISOString(),
         })
@@ -123,6 +140,7 @@ serve(async (req) => {
         console.error("Error updating connection:", updateError);
         throw updateError;
       }
+      console.log("Updated existing GitHub connection");
     } else {
       // Create new connection
       const { error: insertError } = await supabase
@@ -137,6 +155,7 @@ serve(async (req) => {
         console.error("Error inserting connection:", insertError);
         throw insertError;
       }
+      console.log("Created new GitHub connection");
     }
 
     // Log the action
@@ -149,13 +168,16 @@ serve(async (req) => {
 
     console.log("GitHub connection saved successfully for:", cleanUsername);
 
+    // Redirect to settings with success parameter
     return new Response(null, {
       status: 302,
       headers: { Location: `${frontendUrl}/settings?github=connected` },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error in GitHub OAuth callback:", error);
-    const frontendUrl = Deno.env.get("FRONTEND_URL") || "https://id-preview--67f19b4b-2350-4ef4-8e5c-d38ad52ce54d.lovable.app";
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error details:", message);
+    
     return new Response(null, {
       status: 302,
       headers: { Location: `${frontendUrl}/settings?error=server_error` },
