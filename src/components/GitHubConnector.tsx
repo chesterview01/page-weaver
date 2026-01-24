@@ -1,38 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Github, Loader2, CheckCircle2, AlertCircle, ExternalLink, Upload, Unlink } from 'lucide-react';
+import { Github, Loader2, CheckCircle2, AlertCircle, ExternalLink, Upload, Unlink, RefreshCw, FolderGit2, Lock, Globe } from 'lucide-react';
 import { useGitHubConnection } from '@/hooks/useGitHubConnection';
 import { toast } from '@/hooks/use-toast';
 import { CodeOutput } from '@/types/chat';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+
+interface ProjectFile {
+  path: string;
+  content: string;
+}
 
 interface GitHubConnectorProps {
   currentCode: string | CodeOutput | null;
   currentProject?: {
     projectName: string;
-    files: Array<{ path: string; content: string }>;
+    files: ProjectFile[];
   } | null;
 }
 
 const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode, currentProject }) => {
   const {
     connection,
+    status,
     isLoading,
     isConnecting,
-    isUploading,
+    isSyncing,
     isConnected,
     initiateOAuth,
     disconnect,
-    uploadToGitHub,
+    syncProject,
   } = useGitHubConnection();
 
   const [open, setOpen] = useState(false);
   const [disconnectConfirm, setDisconnectConfirm] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [repoName, setRepoName] = useState('');
   const [createNewRepo, setCreateNewRepo] = useState(true);
+  const [isPrivate, setIsPrivate] = useState(false);
 
   // Get repository name suggestion from project
   const getDefaultRepoName = () => {
@@ -45,6 +53,13 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode, currentP
     return 'mi-proyecto';
   };
 
+  // Reset repo name when project changes
+  useEffect(() => {
+    if (currentProject?.projectName) {
+      setRepoName(getDefaultRepoName());
+    }
+  }, [currentProject?.projectName]);
+
   const handleConnect = () => {
     initiateOAuth();
   };
@@ -54,7 +69,7 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode, currentP
     setDisconnectConfirm(false);
   };
 
-  const handleUpload = async () => {
+  const handleSync = async () => {
     if (!connection) {
       toast({
         title: "Error",
@@ -75,33 +90,56 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode, currentP
       return;
     }
 
-    // Get the latest build ID from the current project/code
-    // For now, we'll use the edge function that handles the upload
-    setUploadStatus('uploading');
+    // Prepare files from current project
+    let files: ProjectFile[] = [];
+    
+    if (currentProject?.files && currentProject.files.length > 0) {
+      files = currentProject.files;
+    } else if (currentCode && typeof currentCode === 'object' && 'html' in currentCode) {
+      // Legacy format - convert to files
+      const code = currentCode as CodeOutput;
+      files = [
+        { path: 'index.html', content: code.html || '' },
+        { path: 'styles.css', content: code.css || '' },
+        { path: 'script.js', content: code.js || '' },
+        { path: 'README.md', content: `# ${finalRepoName}\n\nProyecto creado con Chester Code IA.` },
+      ];
+    }
+
+    if (files.length === 0) {
+      toast({
+        title: "Error",
+        description: "No hay archivos para sincronizar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSyncStatus('syncing');
     
     try {
-      // The uploadToGitHub function expects a buildId, but we can modify it
-      // to work with the current code directly
-      const result = await uploadToGitHub('current', finalRepoName, createNewRepo);
+      const result = await syncProject(finalRepoName, files, {
+        isNewRepo: createNewRepo,
+        isPrivate,
+      });
       
       if (result) {
-        setUploadStatus('success');
+        setSyncStatus('success');
         setTimeout(() => {
-          setUploadStatus('idle');
-          setOpen(false);
-        }, 2000);
+          setSyncStatus('idle');
+        }, 3000);
       } else {
-        setUploadStatus('error');
-        setTimeout(() => setUploadStatus('idle'), 3000);
+        setSyncStatus('error');
+        setTimeout(() => setSyncStatus('idle'), 3000);
       }
     } catch (error) {
-      setUploadStatus('error');
-      setTimeout(() => setUploadStatus('idle'), 3000);
+      setSyncStatus('error');
+      setTimeout(() => setSyncStatus('idle'), 3000);
     }
   };
 
-  // Check if we have code to upload
-  const hasCode = currentCode || currentProject;
+  // Check if we have code to sync
+  const hasCode = currentCode || (currentProject?.files && currentProject.files.length > 0);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -120,8 +158,8 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode, currentP
           </DialogTitle>
           <DialogDescription>
             {isConnected 
-              ? "Sube tu proyecto a un repositorio de GitHub" 
-              : "Conecta tu cuenta de GitHub para subir proyectos"
+              ? "Sincroniza tu proyecto con GitHub" 
+              : "Conecta tu cuenta de GitHub para sincronizar proyectos"
             }
           </DialogDescription>
         </DialogHeader>
@@ -172,7 +210,7 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode, currentP
               </Dialog>
             </div>
 
-            {/* Repository Selection */}
+            {/* Repository Configuration */}
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="repo-name">Nombre del repositorio</Label>
@@ -183,21 +221,40 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode, currentP
                   onChange={(e) => setRepoName(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Se creará en github.com/{connection.github_username}/{repoName || getDefaultRepoName()}
+                  github.com/{connection.github_username}/{repoName || getDefaultRepoName()}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FolderGit2 className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="create-new" className="text-sm font-normal cursor-pointer">
+                    Crear repositorio si no existe
+                  </Label>
+                </div>
+                <Switch
                   id="create-new"
                   checked={createNewRepo}
-                  onChange={(e) => setCreateNewRepo(e.target.checked)}
-                  className="rounded border-input"
+                  onCheckedChange={setCreateNewRepo}
                 />
-                <Label htmlFor="create-new" className="text-sm font-normal cursor-pointer">
-                  Crear nuevo repositorio (si no existe)
-                </Label>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {isPrivate ? (
+                    <Lock className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Globe className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <Label htmlFor="is-private" className="text-sm font-normal cursor-pointer">
+                    Repositorio privado
+                  </Label>
+                </div>
+                <Switch
+                  id="is-private"
+                  checked={isPrivate}
+                  onCheckedChange={setIsPrivate}
+                />
               </div>
             </div>
 
@@ -217,38 +274,38 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode, currentP
               </div>
             )}
 
-            {/* Upload Button */}
+            {/* Sync Button */}
             <Button
               className="w-full"
-              onClick={handleUpload}
-              disabled={!hasCode || isUploading || uploadStatus === 'uploading'}
+              onClick={handleSync}
+              disabled={!hasCode || isSyncing || syncStatus === 'syncing'}
             >
-              {uploadStatus === 'uploading' || isUploading ? (
+              {syncStatus === 'syncing' || isSyncing ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Subiendo...
+                  Sincronizando...
                 </>
-              ) : uploadStatus === 'success' ? (
+              ) : syncStatus === 'success' ? (
                 <>
                   <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
-                  ¡Subido correctamente!
+                  ¡Sincronizado!
                 </>
-              ) : uploadStatus === 'error' ? (
+              ) : syncStatus === 'error' ? (
                 <>
                   <AlertCircle className="h-4 w-4 mr-2" />
-                  Error al subir
+                  Error al sincronizar
                 </>
               ) : (
                 <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Subir a GitHub
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Sincronizar con GitHub
                 </>
               )}
             </Button>
 
             {!hasCode && (
               <p className="text-xs text-center text-muted-foreground">
-                Genera una página primero para poder subirla a GitHub.
+                Genera una página primero para poder sincronizarla con GitHub.
               </p>
             )}
           </div>
@@ -261,7 +318,7 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode, currentP
               </div>
               <h3 className="font-medium mb-2">Conecta tu cuenta de GitHub</h3>
               <p className="text-sm text-muted-foreground mb-6">
-                Con un solo clic, podrás subir tus proyectos directamente a repositorios de GitHub.
+                Con un solo clic, podrás sincronizar tus proyectos directamente con repositorios de GitHub.
               </p>
               
               <Button 
@@ -295,7 +352,7 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode, currentP
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span>Crea repositorios automáticamente</span>
+                <span>Sincroniza cambios con un clic</span>
               </div>
             </div>
           </div>
