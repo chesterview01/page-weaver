@@ -148,7 +148,11 @@ export const useGitHubConnection = () => {
     }
   }, [user, connection]);
 
-  const uploadToGitHub = useCallback(async (buildId: string, repoName: string, isNewRepo: boolean = false) => {
+  const uploadToGitHub = useCallback(async (
+    buildIdOrCode: string | { html: string; css: string; js: string; projectName?: string }, 
+    repoName: string, 
+    isNewRepo: boolean = false
+  ) => {
     if (!user || !connection) {
       toast({
         title: "Error",
@@ -161,8 +165,21 @@ export const useGitHubConnection = () => {
     try {
       setIsUploading(true);
 
-      const { data, error } = await supabase.functions.invoke('github-upload-project', {
-        body: { buildId, repoName, isNewRepo },
+      // Check if we're passing code directly or a buildId
+      const isDirectCode = typeof buildIdOrCode === 'object';
+
+      const { data, error } = await supabase.functions.invoke('github-upload', {
+        body: isDirectCode 
+          ? { 
+              repoName, 
+              isNewRepo,
+              directCode: buildIdOrCode,
+            }
+          : { 
+              buildId: buildIdOrCode, 
+              repoName, 
+              isNewRepo 
+            },
       });
 
       if (error) throw error;

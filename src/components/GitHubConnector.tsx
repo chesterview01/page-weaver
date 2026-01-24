@@ -1,276 +1,128 @@
-import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import React, { useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Github, Loader2, CheckCircle2, AlertCircle, ExternalLink, Upload, FolderGit2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuthContext } from '@/contexts/AuthContext';
+import { Github, Loader2, CheckCircle2, AlertCircle, ExternalLink, Upload, Unlink } from 'lucide-react';
+import { useGitHubConnection } from '@/hooks/useGitHubConnection';
 import { toast } from '@/hooks/use-toast';
 import { CodeOutput } from '@/types/chat';
-
-interface GitHubConnection {
-  id: string;
-  github_username: string | null;
-  repository_name: string | null;
-  repository_url: string | null;
-  personal_access_token: string | null;
-}
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface GitHubConnectorProps {
   currentCode: string | CodeOutput | null;
+  currentProject?: {
+    projectName: string;
+    files: Array<{ path: string; content: string }>;
+  } | null;
 }
 
-const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode }) => {
-  const { user } = useAuthContext();
+const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode, currentProject }) => {
+  const {
+    connection,
+    isLoading,
+    isConnecting,
+    isUploading,
+    isConnected,
+    initiateOAuth,
+    disconnect,
+    uploadToGitHub,
+  } = useGitHubConnection();
+
   const [open, setOpen] = useState(false);
-  const [connection, setConnection] = useState<GitHubConnection | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [disconnectConfirm, setDisconnectConfirm] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
-
-  const [username, setUsername] = useState('');
   const [repoName, setRepoName] = useState('');
-  const [token, setToken] = useState('');
+  const [createNewRepo, setCreateNewRepo] = useState(true);
 
-  useEffect(() => {
-    if (open && user) {
-      loadConnection();
+  // Get repository name suggestion from project
+  const getDefaultRepoName = () => {
+    if (currentProject?.projectName) {
+      return currentProject.projectName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
     }
-  }, [open, user]);
-
-  const loadConnection = async () => {
-    if (!user) return;
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('github_connections')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (!error && data) {
-        setConnection(data as GitHubConnection);
-        setUsername(data.github_username || '');
-        setRepoName(data.repository_name || '');
-        setToken(data.personal_access_token || '');
-      }
-    } catch (error) {
-      console.error('Error loading connection:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    return 'mi-proyecto';
   };
 
-  const handleSaveConnection = async () => {
-    if (!user) return;
-    setIsSaving(true);
-    try {
-      const connectionData = {
-        user_id: user.id,
-        github_username: username || null,
-        repository_name: repoName || null,
-        repository_url: username && repoName ? `https://github.com/${username}/${repoName}` : null,
-        personal_access_token: token || null,
-      };
+  const handleConnect = () => {
+    initiateOAuth();
+  };
 
-      if (connection) {
-        const { error } = await supabase
-          .from('github_connections')
-          .update(connectionData)
-          .eq('id', connection.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('github_connections')
-          .insert(connectionData);
-        if (error) throw error;
-      }
+  const handleDisconnect = async () => {
+    await disconnect();
+    setDisconnectConfirm(false);
+  };
 
-      toast({
-        title: "Conexión guardada",
-        description: "Tu configuración de GitHub ha sido guardada.",
-      });
-      loadConnection();
-    } catch (error) {
-      console.error('Error saving connection:', error);
+  const handleUpload = async () => {
+    if (!connection) {
       toast({
         title: "Error",
-        description: "No se pudo guardar la conexión.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const getCodeFiles = (): { html: string; css: string; js: string } => {
-    if (!currentCode) return { html: '', css: '', js: '' };
-    
-    if (typeof currentCode === 'object' && 'html' in currentCode) {
-      return {
-        html: currentCode.html || '',
-        css: currentCode.css || '',
-        js: currentCode.js || '',
-      };
-    }
-    
-    // Parse from string
-    const codeString = String(currentCode);
-    const styleMatch = codeString.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
-    const scriptMatch = codeString.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
-    
-    return {
-      html: codeString,
-      css: styleMatch?.[1]?.trim() || '/* No styles */',
-      js: scriptMatch?.[1]?.trim() || '// No scripts',
-    };
-  };
-
-  // Direct GitHub API upload
-  const uploadFileToGitHub = async (
-    owner: string,
-    repo: string,
-    path: string,
-    content: string,
-    token: string,
-    message: string
-  ): Promise<boolean> => {
-    const base64Content = btoa(unescape(encodeURIComponent(content)));
-    
-    // First, try to get the file to check if it exists (for updates)
-    let sha: string | undefined;
-    try {
-      const getResponse = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/vnd.github.v3+json',
-          },
-        }
-      );
-      if (getResponse.ok) {
-        const fileData = await getResponse.json();
-        sha = fileData.sha;
-      }
-    } catch {
-      // File doesn't exist, which is fine
-    }
-
-    // PUT the file
-    const response = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-      {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message,
-          content: base64Content,
-          ...(sha && { sha }),
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Error uploading to GitHub');
-    }
-
-    return true;
-  };
-
-  const handleUploadToGitHub = async () => {
-    if (!connection?.personal_access_token || !connection?.github_username || !connection?.repository_name) {
-      toast({
-        title: "Error",
-        description: "Configura tu conexión de GitHub primero.",
+        description: "Debes conectar tu cuenta de GitHub primero.",
         variant: "destructive",
       });
       return;
     }
 
-    const { html, css, js } = getCodeFiles();
-    if (!html && !css && !js) {
+    const finalRepoName = repoName.trim() || getDefaultRepoName();
+    
+    if (!finalRepoName) {
       toast({
         title: "Error",
-        description: "No hay código para subir.",
+        description: "Ingresa un nombre para el repositorio.",
         variant: "destructive",
       });
       return;
     }
 
-    setIsUploading(true);
+    // Get the latest build ID from the current project/code
+    // For now, we'll use the edge function that handles the upload
     setUploadStatus('uploading');
     
     try {
-      const files = [
-        { path: 'index.html', content: html },
-        { path: 'style.css', content: css },
-        { path: 'script.js', content: js },
-      ];
-
-      const commitMessage = `Commit desde Chester Code IA - ${new Date().toLocaleString('es-ES')}`;
-
-      // Upload each file directly to GitHub API
-      for (const file of files) {
-        await uploadFileToGitHub(
-          connection.github_username!,
-          connection.repository_name!,
-          file.path,
-          file.content,
-          connection.personal_access_token!,
-          commitMessage
-        );
-      }
-
-      setUploadStatus('success');
-      toast({
-        title: "¡Proyecto subido a GitHub!",
-        description: `${files.length} archivos subidos correctamente.`,
-      });
+      // The uploadToGitHub function expects a buildId, but we can modify it
+      // to work with the current code directly
+      const result = await uploadToGitHub('current', finalRepoName, createNewRepo);
       
-      // Open repo in new tab
-      if (connection.repository_url) {
-        window.open(connection.repository_url, '_blank');
+      if (result) {
+        setUploadStatus('success');
+        setTimeout(() => {
+          setUploadStatus('idle');
+          setOpen(false);
+        }, 2000);
+      } else {
+        setUploadStatus('error');
+        setTimeout(() => setUploadStatus('idle'), 3000);
       }
     } catch (error) {
-      console.error('Error uploading:', error);
       setUploadStatus('error');
-      toast({
-        title: "Error al subir",
-        description: error instanceof Error ? error.message : "No se pudo subir a GitHub.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-      // Reset status after 3 seconds
       setTimeout(() => setUploadStatus('idle'), 3000);
     }
   };
 
+  // Check if we have code to upload
+  const hasCode = currentCode || currentProject;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Github className="h-4 w-4 mr-2" />
+        <Button variant="outline" size="sm" className="gap-2">
+          <Github className="h-4 w-4" />
           GitHub
+          {isConnected && <CheckCircle2 className="h-3 w-3 text-green-500" />}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Github className="h-5 w-5" />
-            Subir a GitHub
+            GitHub
           </DialogTitle>
           <DialogDescription>
-            Configura tu repositorio y sube tu código con un clic
+            {isConnected 
+              ? "Sube tu proyecto a un repositorio de GitHub" 
+              : "Conecta tu cuenta de GitHub para subir proyectos"
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -278,114 +130,174 @@ const GitHubConnector: React.FC<GitHubConnectorProps> = ({ currentCode }) => {
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : (
+        ) : isConnected && connection ? (
           <div className="space-y-6 mt-4">
-            <Alert>
-              <FolderGit2 className="h-4 w-4" />
-              <AlertTitle>Personal Access Token</AlertTitle>
-              <AlertDescription className="text-xs">
-                Necesitas un token con permisos <code className="bg-muted px-1 rounded">repo</code> para subir código.
-                <a
-                  href="https://github.com/settings/tokens/new?scopes=repo&description=Chester%20Code%20IA"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-primary hover:underline mt-1"
-                >
-                  Crear token <ExternalLink className="h-3 w-3" />
-                </a>
-              </AlertDescription>
-            </Alert>
+            {/* Connected Status */}
+            <div className="flex items-center justify-between p-4 rounded-lg border border-green-500/30 bg-green-500/5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-500/20">
+                  <Github className="h-4 w-4 text-green-600" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">@{connection.github_username}</span>
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  </div>
+                  <span className="text-xs text-muted-foreground">Cuenta conectada</span>
+                </div>
+              </div>
+              <Dialog open={disconnectConfirm} onOpenChange={setDisconnectConfirm}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
+                    <Unlink className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>¿Desconectar GitHub?</DialogTitle>
+                    <DialogDescription>
+                      Esto eliminará la conexión con tu cuenta de GitHub (@{connection.github_username}). 
+                      Tus repositorios no serán afectados.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDisconnectConfirm(false)}>
+                      Cancelar
+                    </Button>
+                    <Button variant="destructive" onClick={handleDisconnect}>
+                      Desconectar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
 
+            {/* Repository Selection */}
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="gh-username">Usuario de GitHub</Label>
+                <Label htmlFor="repo-name">Nombre del repositorio</Label>
                 <Input
-                  id="gh-username"
-                  placeholder="tu-usuario"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="gh-repo">Nombre del repositorio</Label>
-                <Input
-                  id="gh-repo"
-                  placeholder="mi-proyecto"
+                  id="repo-name"
+                  placeholder={getDefaultRepoName()}
                   value={repoName}
                   onChange={(e) => setRepoName(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  El repositorio debe existir en GitHub antes de subir.
+                  Se creará en github.com/{connection.github_username}/{repoName || getDefaultRepoName()}
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="gh-token">Personal Access Token</Label>
-                <Input
-                  id="gh-token"
-                  type="password"
-                  placeholder="ghp_..."
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="create-new"
+                  checked={createNewRepo}
+                  onChange={(e) => setCreateNewRepo(e.target.checked)}
+                  className="rounded border-input"
                 />
+                <Label htmlFor="create-new" className="text-sm font-normal cursor-pointer">
+                  Crear nuevo repositorio (si no existe)
+                </Label>
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={handleSaveConnection}
-                disabled={isSaving || !username || !repoName || !token}
+            {/* Last Repository */}
+            {connection.repository_url && (
+              <div className="p-3 rounded-lg bg-muted/50 border border-border">
+                <p className="text-xs text-muted-foreground mb-1">Último repositorio:</p>
+                <a
+                  href={connection.repository_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline flex items-center gap-1"
+                >
+                  {connection.repository_url}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            )}
+
+            {/* Upload Button */}
+            <Button
+              className="w-full"
+              onClick={handleUpload}
+              disabled={!hasCode || isUploading || uploadStatus === 'uploading'}
+            >
+              {uploadStatus === 'uploading' || isUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Subiendo...
+                </>
+              ) : uploadStatus === 'success' ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
+                  ¡Subido correctamente!
+                </>
+              ) : uploadStatus === 'error' ? (
+                <>
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Error al subir
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Subir a GitHub
+                </>
+              )}
+            </Button>
+
+            {!hasCode && (
+              <p className="text-xs text-center text-muted-foreground">
+                Genera una página primero para poder subirla a GitHub.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-6 mt-4">
+            {/* Not Connected */}
+            <div className="text-center py-6">
+              <div className="p-4 rounded-full bg-muted/50 w-fit mx-auto mb-4">
+                <Github className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="font-medium mb-2">Conecta tu cuenta de GitHub</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Con un solo clic, podrás subir tus proyectos directamente a repositorios de GitHub.
+              </p>
+              
+              <Button 
+                onClick={handleConnect} 
+                disabled={isConnecting}
+                className="w-full"
               >
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar'}
-              </Button>
-              <Button
-                className="flex-1"
-                onClick={handleUploadToGitHub}
-                disabled={!connection?.personal_access_token || isUploading || !currentCode}
-              >
-                {uploadStatus === 'uploading' ? (
+                {isConnecting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Subiendo...
-                  </>
-                ) : uploadStatus === 'success' ? (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
-                    ¡Subido!
-                  </>
-                ) : uploadStatus === 'error' ? (
-                  <>
-                    <AlertCircle className="h-4 w-4 mr-2 text-destructive" />
-                    Error
+                    Conectando...
                   </>
                 ) : (
                   <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Subir a GitHub
+                    <Github className="h-4 w-4 mr-2" />
+                    Conectar con GitHub
                   </>
                 )}
               </Button>
             </div>
 
-            {connection?.repository_url && (
-              <div className="p-3 rounded-lg bg-muted/50 border border-border">
-                <div className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span>Repositorio configurado:</span>
-                </div>
-                <a
-                  href={connection.repository_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline font-mono"
-                >
-                  {connection.repository_url}
-                </a>
+            {/* Benefits */}
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span>Sin necesidad de tokens manuales</span>
               </div>
-            )}
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span>Autorización segura con OAuth</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span>Crea repositorios automáticamente</span>
+              </div>
+            </div>
           </div>
         )}
       </DialogContent>
