@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Message, Version, CodeOutput } from '@/types/chat';
+import { Message, Version, CodeOutput, ProjectOutput } from '@/types/chat';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useSettings } from '@/hooks/useSettings';
@@ -9,7 +9,53 @@ import { generateThumbnail } from '@/utils/thumbnailGenerator';
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
-// Parse code blocks from AI response
+// Parse JSON project structure from AI response
+const parseProjectFromResponse = (content: string): ProjectOutput | null => {
+  try {
+    // Look for JSON block with project structure
+    const jsonMatch = content.match(/```json\n?([\s\S]*?)```/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[1].trim());
+      if (parsed.projectName && Array.isArray(parsed.files)) {
+        return parsed as ProjectOutput;
+      }
+    }
+    
+    // Try to find raw JSON in response
+    const rawJsonMatch = content.match(/\{[\s\S]*"projectName"[\s\S]*"files"[\s\S]*\}/);
+    if (rawJsonMatch) {
+      const parsed = JSON.parse(rawJsonMatch[0]);
+      if (parsed.projectName && Array.isArray(parsed.files)) {
+        return parsed as ProjectOutput;
+      }
+    }
+  } catch (e) {
+    console.log('No valid project JSON found, falling back to code blocks');
+  }
+  return null;
+};
+
+// Convert project structure to legacy CodeOutput for preview
+const projectToCodeOutput = (project: ProjectOutput): CodeOutput => {
+  let html = '';
+  let css = '';
+  let js = '';
+  
+  project.files.forEach(file => {
+    const path = file.path.toLowerCase();
+    if (path.endsWith('.html') || path.includes('index.html')) {
+      html += file.content + '\n';
+    } else if (path.endsWith('.css')) {
+      css += file.content + '\n';
+    } else if (path.endsWith('.js') || path.endsWith('.jsx') || path.endsWith('.ts') || path.endsWith('.tsx')) {
+      js += file.content + '\n';
+    }
+  });
+  
+  return { html: html.trim(), css: css.trim(), js: js.trim() };
+};
+
+// Parse code blocks from AI response (legacy fallback)
 const parseCodeFromResponse = (content: string): CodeOutput | null => {
   const htmlMatch = content.match(/```html\n?([\s\S]*?)```/);
   const cssMatch = content.match(/```css\n?([\s\S]*?)```/);
@@ -25,9 +71,10 @@ const parseCodeFromResponse = (content: string): CodeOutput | null => {
   return null;
 };
 
-// Extract narrative text (everything before code blocks)
+// Extract narrative text (everything before code/json blocks)
 const extractNarrative = (content: string): string => {
   let narrative = content
+    .replace(/```json\n?[\s\S]*?```/g, '')
     .replace(/```html\n?[\s\S]*?```/g, '')
     .replace(/```css\n?[\s\S]*?```/g, '')
     .replace(/```(?:javascript|js)\n?[\s\S]*?```/g, '')
@@ -143,6 +190,7 @@ export const useChat = () => {
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [currentCode, setCurrentCode] = useState<CodeOutput | null>(null);
+  const [currentProject, setCurrentProject] = useState<ProjectOutput | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [lastBuildId, setLastBuildId] = useState<string | null>(null);
@@ -461,24 +509,35 @@ export const useChat = () => {
       onDone: async () => {
         setIsLoading(false);
 
-        const code = parseCodeFromResponse(assistantContent);
+        // Try to parse as project structure first
+        const project = parseProjectFromResponse(assistantContent);
+        const code = project ? projectToCodeOutput(project) : parseCodeFromResponse(assistantContent);
         const narrativeContent = extractNarrative(assistantContent);
         
-        if (code) {
+        if (code || project) {
+          const finalCode = code || { html: '', css: '', js: '' };
+          
           const newVersion: Version = {
             id: `v-${Date.now()}`,
             timestamp: new Date(),
             label: content.substring(0, 40) + (content.length > 40 ? '...' : ''),
-            code,
+            code: finalCode,
+            project: project || undefined,
           };
 
           setMessages(prev =>
-            prev.map(m => m.id === assistantId ? { ...m, content: narrativeContent, codeOutput: code } : m)
+            prev.map(m => m.id === assistantId ? { 
+              ...m, 
+              content: narrativeContent, 
+              codeOutput: finalCode,
+              projectOutput: project || undefined,
+            } : m)
           );
 
           setVersions(prev => [newVersion, ...prev]);
           setCurrentVersion(newVersion.id);
-          setCurrentCode(code);
+          setCurrentCode(finalCode);
+          setCurrentProject(project);
 
           // Save build to database
           try {
@@ -497,9 +556,9 @@ export const useChat = () => {
                 conversation_id: conversationId,
                 message_id: savedMessage.id,
                 label: newVersion.label,
-                html: code.html,
-                css: code.css,
-                js: code.js,
+                html: finalCode.html,
+                css: finalCode.css,
+                js: finalCode.js,
                 project_id: currentProjectId,
               }).select().single();
 
@@ -507,7 +566,7 @@ export const useChat = () => {
                 setLastBuildId(build.id);
                 
                 // Generate and save thumbnail in background
-                generateThumbnail(code.html, code.css, code.js).then(async (thumbnailUrl) => {
+                generateThumbnail(finalCode.html, finalCode.css, finalCode.js).then(async (thumbnailUrl) => {
                   if (thumbnailUrl) {
                     await supabase
                       .from('builds')
@@ -563,6 +622,7 @@ export const useChat = () => {
     if (version) {
       setCurrentVersion(versionId);
       setCurrentCode(version.code);
+      setCurrentProject(version.project || null);
       
       supabase.from('audit_logs').insert({
         action: 'version_rollback',
@@ -639,6 +699,7 @@ export const useChat = () => {
     versions,
     currentVersion,
     currentCode,
+    currentProject,
     isLoading,
     sendMessage,
     selectVersion,

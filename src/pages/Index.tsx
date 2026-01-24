@@ -20,6 +20,7 @@ const Index = () => {
     versions,
     currentVersion,
     currentCode,
+    currentProject,
     isLoading,
     sendMessage,
     selectVersion,
@@ -107,7 +108,7 @@ const Index = () => {
             </div>
           </div>
           <div className="flex-1">
-            <PreviewPanel code={currentCode} />
+            <PreviewPanel code={currentCode} project={currentProject} />
           </div>
         </div>
 
