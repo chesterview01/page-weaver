@@ -1,10 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Monitor, Smartphone, Tablet, ExternalLink, RefreshCw, FolderTree, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CodeOutput, ProjectOutput } from '@/types/chat';
 import { cn } from '@/lib/utils';
-import FileExplorer from './FileExplorer';
-import CodeViewer from './CodeViewer';
+import FileExplorerEnhanced from './FileExplorerEnhanced';
+import CodeEditorPanel from './CodeEditorPanel';
 import {
   ResizableHandle,
   ResizablePanel,
@@ -14,16 +14,25 @@ import {
 interface PreviewPanelProps {
   code: CodeOutput | null;
   project?: ProjectOutput | null;
+  onProjectChange?: (project: ProjectOutput) => void;
 }
 
 type ViewportSize = 'desktop' | 'tablet' | 'mobile';
 type ViewMode = 'preview' | 'files';
 
-const PreviewPanel: React.FC<PreviewPanelProps> = ({ code, project }) => {
+const PreviewPanel: React.FC<PreviewPanelProps> = ({ code, project: initialProject, onProjectChange }) => {
   const [viewport, setViewport] = useState<ViewportSize>('desktop');
   const [key, setKey] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>('preview');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [project, setProject] = useState<ProjectOutput | null>(initialProject || null);
+
+  // Sync project when prop changes
+  useEffect(() => {
+    if (initialProject) {
+      setProject(initialProject);
+    }
+  }, [initialProject]);
 
   const iframeSrc = useMemo(() => {
     if (!code) return null;
@@ -61,6 +70,78 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ code, project }) => {
   }, [project, selectedFile]);
 
   const hasProject = project && project.files.length > 0;
+
+  // File operations
+  const handleUpdateFile = useCallback((content: string) => {
+    if (!project || !selectedFile) return;
+    
+    const updatedFiles = project.files.map(f => 
+      f.path === selectedFile ? { ...f, content } : f
+    );
+    
+    const updatedProject = { ...project, files: updatedFiles };
+    setProject(updatedProject);
+    onProjectChange?.(updatedProject);
+  }, [project, selectedFile, onProjectChange]);
+
+  const handleCreateFile = useCallback((path: string) => {
+    if (!project) return;
+    
+    // Check if file already exists
+    if (project.files.some(f => f.path === path)) {
+      console.warn(`File ${path} already exists`);
+      return;
+    }
+
+    const updatedProject = {
+      ...project,
+      files: [...project.files, { path, content: '' }]
+    };
+    
+    setProject(updatedProject);
+    onProjectChange?.(updatedProject);
+    setSelectedFile(path);
+  }, [project, onProjectChange]);
+
+  const handleCreateFolder = useCallback((path: string) => {
+    if (!project) return;
+    
+    const gitkeepPath = `${path}/.gitkeep`;
+    
+    if (project.files.some(f => f.path.startsWith(`${path}/`))) {
+      console.warn(`Folder ${path} already exists`);
+      return;
+    }
+
+    const updatedProject = {
+      ...project,
+      files: [...project.files, { path: gitkeepPath, content: '' }]
+    };
+    
+    setProject(updatedProject);
+    onProjectChange?.(updatedProject);
+  }, [project, onProjectChange]);
+
+  const handleDeleteFile = useCallback((path: string) => {
+    if (!project) return;
+    
+    const isFolder = project.files.some(f => f.path.startsWith(`${path}/`));
+    
+    let updatedFiles;
+    if (isFolder) {
+      updatedFiles = project.files.filter(f => !f.path.startsWith(`${path}/`) && f.path !== path);
+    } else {
+      updatedFiles = project.files.filter(f => f.path !== path);
+    }
+
+    const updatedProject = { ...project, files: updatedFiles };
+    setProject(updatedProject);
+    onProjectChange?.(updatedProject);
+    
+    if (selectedFile === path || (isFolder && selectedFile?.startsWith(`${path}/`))) {
+      setSelectedFile(null);
+    }
+  }, [project, onProjectChange, selectedFile]);
 
   return (
     <div className="flex flex-col h-full">
@@ -189,10 +270,13 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ code, project }) => {
                     <h3 className="text-sm font-semibold">{project.projectName}</h3>
                     <p className="text-xs text-muted-foreground">{project.files.length} archivos</p>
                   </div>
-                  <FileExplorer
+                  <FileExplorerEnhanced
                     files={project.files}
                     selectedFile={selectedFile}
                     onSelectFile={setSelectedFile}
+                    onCreateFile={handleCreateFile}
+                    onCreateFolder={handleCreateFolder}
+                    onDeleteFile={handleDeleteFile}
                   />
                 </div>
               </ResizablePanel>
@@ -200,21 +284,26 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ code, project }) => {
               <ResizablePanel defaultSize={70}>
                 <div className="h-full overflow-hidden">
                   {selectedFileContent ? (
-                    <CodeViewer
+                    <CodeEditorPanel
                       content={selectedFileContent.content}
                       filename={selectedFileContent.path}
+                      onSave={handleUpdateFile}
                     />
                   ) : (
-                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                      <p className="text-sm">Selecciona un archivo para ver su contenido</p>
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground bg-muted/20">
+                      <FolderTree className="w-12 h-12 mb-4 opacity-50" />
+                      <p className="text-sm font-medium">Selecciona un archivo</p>
+                      <p className="text-xs mt-1">Haz clic en un archivo del árbol para ver y editar su contenido</p>
                     </div>
                   )}
                 </div>
               </ResizablePanel>
             </ResizablePanelGroup>
           ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
-              <p className="text-sm">No hay estructura de proyecto disponible</p>
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <FolderTree className="w-12 h-12 mb-4 opacity-50" />
+              <p className="text-sm font-medium">No hay estructura de proyecto</p>
+              <p className="text-xs mt-1">Genera una página para ver los archivos</p>
             </div>
           )}
         </div>

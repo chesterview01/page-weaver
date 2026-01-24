@@ -25,6 +25,7 @@ const Index = () => {
     sendMessage,
     selectVersion,
     saveToProject,
+    updateProject,
     lastBuildId,
     currentProjectId,
     clearChat,
@@ -108,7 +109,11 @@ const Index = () => {
             </div>
           </div>
           <div className="flex-1">
-            <PreviewPanel code={currentCode} project={currentProject} />
+            <PreviewPanel 
+              code={currentCode} 
+              project={currentProject} 
+              onProjectChange={updateProject}
+            />
           </div>
         </div>
 

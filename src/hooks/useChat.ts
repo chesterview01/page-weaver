@@ -673,6 +673,24 @@ export const useChat = () => {
     }
   }, [lastBuildId, conversationId]);
 
+  // Update project when files are edited
+  const updateProject = useCallback((updatedProject: ProjectOutput) => {
+    setCurrentProject(updatedProject);
+    
+    // Also update the code output for preview
+    const newCode = projectToCodeOutput(updatedProject);
+    setCurrentCode(newCode);
+    
+    // Update the current version with new project
+    if (currentVersion) {
+      setVersions(prev => prev.map(v => 
+        v.id === currentVersion 
+          ? { ...v, code: newCode, project: updatedProject }
+          : v
+      ));
+    }
+  }, [currentVersion]);
+
   // Clear chat and start new conversation
   const clearChat = useCallback(async () => {
     clearState();
@@ -680,6 +698,7 @@ export const useChat = () => {
     setVersions([]);
     setCurrentVersion(null);
     setCurrentCode(null);
+    setCurrentProject(null);
     setCurrentProjectId(null);
     setLastBuildId(null);
     initializedRef.current = false;
@@ -704,6 +723,7 @@ export const useChat = () => {
     sendMessage,
     selectVersion,
     saveToProject,
+    updateProject,
     lastBuildId,
     currentProjectId,
     clearChat,
