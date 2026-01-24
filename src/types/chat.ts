@@ -4,6 +4,7 @@ export interface Message {
   content: string;
   timestamp: Date;
   codeOutput?: CodeOutput;
+  projectOutput?: ProjectOutput;
 }
 
 export interface CodeOutput {
@@ -12,11 +13,22 @@ export interface CodeOutput {
   js: string;
 }
 
+export interface ProjectFile {
+  path: string;
+  content: string;
+}
+
+export interface ProjectOutput {
+  projectName: string;
+  files: ProjectFile[];
+}
+
 export interface Version {
   id: string;
   timestamp: Date;
   label: string;
   code: CodeOutput;
+  project?: ProjectOutput;
 }
 
 export interface ChatState {
