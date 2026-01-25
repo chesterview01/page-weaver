@@ -102,6 +102,20 @@ export const useGitHubConnection = () => {
     loadConnection();
   }, [loadConnection]);
 
+  // Listen for postMessage from OAuth popup
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Accept messages from any origin for OAuth flow
+      if (event.data?.type === 'github-oauth-success') {
+        console.log('Received GitHub OAuth success message');
+        loadConnection();
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [loadConnection]);
+
   const initiateOAuth = useCallback(() => {
     if (!user) {
       toast({

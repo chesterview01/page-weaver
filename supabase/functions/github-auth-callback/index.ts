@@ -168,10 +168,68 @@ serve(async (req) => {
 
     console.log("GitHub connection saved successfully for:", cleanUsername);
 
-    // Redirect to settings with success parameter
-    return new Response(null, {
-      status: 302,
-      headers: { Location: `${frontendUrl}/settings?github=connected` },
+    // Return HTML page that sends postMessage to opener and closes itself
+    const successHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GitHub Connected</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: white;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+    }
+    .checkmark {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+    h1 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.5rem;
+    }
+    p {
+      margin: 0;
+      opacity: 0.8;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="checkmark">✓</div>
+    <h1>¡GitHub conectado!</h1>
+    <p>Cerrando ventana...</p>
+  </div>
+  <script>
+    // Send message to opener window
+    if (window.opener) {
+      window.opener.postMessage({ type: 'github-oauth-success', username: '${cleanUsername}' }, '*');
+      // Close this popup after a short delay
+      setTimeout(() => window.close(), 1500);
+    } else {
+      // If no opener, redirect to settings
+      window.location.href = '${frontendUrl}/settings?github=connected';
+    }
+  </script>
+</body>
+</html>`;
+
+    return new Response(successHtml, {
+      status: 200,
+      headers: { 
+        "Content-Type": "text/html",
+        ...corsHeaders,
+      },
     });
   } catch (error: unknown) {
     console.error("Error in GitHub OAuth callback:", error);
