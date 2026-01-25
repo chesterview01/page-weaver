@@ -10,6 +10,7 @@ import Settings from "./pages/Settings";
 import Pricing from "./pages/Pricing";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
+import AuthCallback from "./pages/AuthCallback";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +59,7 @@ const AppRoutes = () => (
         <Landing />
       </PublicRoute>
     } />
+    <Route path="/auth/callback" element={<AuthCallback />} />
     <Route path="/app" element={
       <ProtectedRoute>
         <Index />

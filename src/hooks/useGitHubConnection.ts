@@ -116,7 +116,7 @@ export const useGitHubConnection = () => {
     return () => window.removeEventListener('message', handleMessage);
   }, [loadConnection]);
 
-  const initiateOAuth = useCallback(() => {
+  const initiateOAuth = useCallback(async () => {
     if (!user) {
       toast({
         title: "Error",
@@ -128,54 +128,36 @@ export const useGitHubConnection = () => {
 
     setIsConnecting(true);
     
-    const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || 'Ov23liWq6ozPxlRo6WHq';
-    const redirectUri = `https://bjoygscbgzzvhxjnrrsj.supabase.co/functions/v1/github-auth-callback`;
-    const scope = 'repo user';
-    const state = user.id; // Pass user ID as state for callback
+    try {
+      // Use Supabase's native OAuth flow - no edge functions needed
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'github',
+        options: {
+          redirectTo: 'https://chestercodeia.vercel.app/auth/callback',
+          scopes: 'repo user',
+        },
+      });
 
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}`;
-    
-    console.log('Opening GitHub OAuth with redirect:', redirectUri);
-    
-    // Open in a popup window
-    const width = 600;
-    const height = 700;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    
-    const popup = window.open(
-      authUrl,
-      'github-oauth',
-      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
-    );
-
-    // If popup was blocked, try opening in new tab
-    if (!popup || popup.closed) {
-      window.open(authUrl, '_blank');
-    }
-
-    // Poll for completion (when the popup redirects back and closes)
-    const checkInterval = setInterval(() => {
-      try {
-        if (popup?.closed) {
-          clearInterval(checkInterval);
-          setIsConnecting(false);
-          // Reload connection after popup closes
-          setTimeout(() => {
-            loadConnection();
-          }, 1000);
-        }
-      } catch (e) {
-        // Cross-origin access error, ignore
+      if (error) {
+        console.error('OAuth error:', error);
+        toast({
+          title: "Error",
+          description: "No se pudo iniciar la conexión con GitHub",
+          variant: "destructive",
+        });
+        setIsConnecting(false);
       }
-    }, 500);
-
-    // Cleanup after 5 minutes
-    setTimeout(() => {
-      clearInterval(checkInterval);
+      // If no error, the browser will redirect to GitHub
+    } catch (error) {
+      console.error('OAuth error:', error);
+      toast({
+        title: "Error",
+        description: "Error al conectar con GitHub",
+        variant: "destructive",
+      });
       setIsConnecting(false);
-    }, 300000);
-  }, [user, loadConnection]);
+    }
+  }, [user]);
 
   const disconnect = useCallback(async () => {
     if (!user || !connection) return false;
