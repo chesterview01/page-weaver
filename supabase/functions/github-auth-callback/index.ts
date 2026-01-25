@@ -6,19 +6,19 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Frontend URL for redirect after OAuth
+const frontendUrl = "https://chestercodeia.vercel.app";
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Frontend URL for redirect after OAuth
-  const frontendUrl = "https://chestercodeia.vercel.app";
-
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
-    const userId = url.searchParams.get("state"); // We pass user_id as state
+    const userId = url.searchParams.get("state");
 
     console.log("GitHub OAuth callback received:", { 
       hasCode: !!code, 
@@ -46,10 +46,7 @@ serve(async (req) => {
     const clientSecret = Deno.env.get("GITHUB_CLIENT_SECRET");
 
     if (!clientId || !clientSecret) {
-      console.error("Missing GitHub OAuth credentials in environment", { 
-        hasClientId: !!clientId, 
-        hasClientSecret: !!clientSecret 
-      });
+      console.error("Missing GitHub OAuth credentials");
       return new Response(null, {
         status: 302,
         headers: { Location: `${frontendUrl}/settings?error=config_error` },
@@ -72,11 +69,7 @@ serve(async (req) => {
     });
 
     const tokenData = await tokenResponse.json();
-    console.log("Token response received:", { 
-      hasAccessToken: !!tokenData.access_token,
-      error: tokenData.error,
-      errorDescription: tokenData.error_description 
-    });
+    console.log("Token response:", { hasAccessToken: !!tokenData.access_token });
 
     if (!tokenData.access_token) {
       console.error("Failed to get access token:", tokenData);
@@ -97,7 +90,7 @@ serve(async (req) => {
     });
 
     if (!userResponse.ok) {
-      console.error("Failed to fetch user info:", await userResponse.text());
+      console.error("Failed to fetch user info");
       return new Response(null, {
         status: 302,
         headers: { Location: `${frontendUrl}/settings?error=user_fetch_error` },
@@ -105,18 +98,15 @@ serve(async (req) => {
     }
 
     const userData = await userResponse.json();
-    console.log("GitHub user info received:", { login: userData.login, id: userData.id });
+    const cleanUsername = userData.login?.replace(/^@/, '') || '';
+    console.log("GitHub user:", cleanUsername);
 
-    // Save to database using service role key
+    // Save to database
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Clean username (remove @ if present)
-    const cleanUsername = userData.login?.replace(/^@/, '') || '';
-    console.log("Saving GitHub connection for user:", cleanUsername);
-
-    // Check if connection already exists
+    // Check if connection exists
     const { data: existingConnection } = await supabase
       .from("github_connections")
       .select("id")
@@ -124,38 +114,24 @@ serve(async (req) => {
       .single();
 
     if (existingConnection) {
-      // Update existing connection
-      const { error: updateError } = await supabase
+      await supabase
         .from("github_connections")
         .update({
           personal_access_token: tokenData.access_token,
           github_username: cleanUsername,
-          repository_url: null, // Reset repo URL, will be set on first sync
+          repository_url: null,
           repository_name: null,
           updated_at: new Date().toISOString(),
         })
         .eq("user_id", userId);
-
-      if (updateError) {
-        console.error("Error updating connection:", updateError);
-        throw updateError;
-      }
-      console.log("Updated existing GitHub connection");
     } else {
-      // Create new connection
-      const { error: insertError } = await supabase
+      await supabase
         .from("github_connections")
         .insert({
           user_id: userId,
           personal_access_token: tokenData.access_token,
           github_username: cleanUsername,
         });
-
-      if (insertError) {
-        console.error("Error inserting connection:", insertError);
-        throw insertError;
-      }
-      console.log("Created new GitHub connection");
     }
 
     // Log the action
@@ -166,11 +142,10 @@ serve(async (req) => {
       details: { github_username: cleanUsername },
     });
 
-    console.log("GitHub connection saved successfully for:", cleanUsername);
+    console.log("GitHub connection saved for:", cleanUsername);
 
-    // Return HTML page that sends postMessage to opener and closes itself
-    const successHtml = `
-<!DOCTYPE html>
+    // Return HTML page that sends postMessage to opener and closes
+    const successHtml = `<!DOCTYPE html>
 <html>
 <head>
   <title>GitHub Connected</title>
@@ -185,23 +160,10 @@ serve(async (req) => {
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
       color: white;
     }
-    .container {
-      text-align: center;
-      padding: 2rem;
-    }
-    .checkmark {
-      font-size: 4rem;
-      margin-bottom: 1rem;
-    }
-    h1 {
-      margin: 0 0 0.5rem 0;
-      font-size: 1.5rem;
-    }
-    p {
-      margin: 0;
-      opacity: 0.8;
-      font-size: 0.9rem;
-    }
+    .container { text-align: center; padding: 2rem; }
+    .checkmark { font-size: 4rem; margin-bottom: 1rem; }
+    h1 { margin: 0 0 0.5rem 0; font-size: 1.5rem; }
+    p { margin: 0; opacity: 0.8; font-size: 0.9rem; }
   </style>
 </head>
 <body>
@@ -211,13 +173,10 @@ serve(async (req) => {
     <p>Cerrando ventana...</p>
   </div>
   <script>
-    // Send message to opener window
     if (window.opener) {
       window.opener.postMessage({ type: 'github-oauth-success', username: '${cleanUsername}' }, '*');
-      // Close this popup after a short delay
-      setTimeout(() => window.close(), 1500);
+      setTimeout(function() { window.close(); }, 1500);
     } else {
-      // If no opener, redirect to settings
       window.location.href = '${frontendUrl}/settings?github=connected';
     }
   </script>
@@ -231,11 +190,8 @@ serve(async (req) => {
         ...corsHeaders,
       },
     });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error("Error in GitHub OAuth callback:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("Error details:", message);
-    
     return new Response(null, {
       status: 302,
       headers: { Location: `${frontendUrl}/settings?error=server_error` },
