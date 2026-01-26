@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Database, Link2, Unlink, CheckCircle2, XCircle, Loader2, RefreshCw, ExternalLink, Trash2, Github } from 'lucide-react';
+import { Database, Link2, Unlink, CheckCircle2, XCircle, Loader2, RefreshCw, ExternalLink, Trash2, Github, Shield, Globe, Table } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,8 @@ import {
 import { useProjectIntegrations, ProjectIntegration } from '@/hooks/useProjectIntegrations';
 import { useProjects } from '@/hooks/useProjects';
 import { useGitHubConnection } from '@/hooks/useGitHubConnection';
+import { useSupabaseConnection } from '@/hooks/useSupabaseConnection';
+import { SupabaseManualConnector } from '@/components/SupabaseManualConnector';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
 
@@ -29,11 +31,23 @@ export const IntegrationsPanel: React.FC = () => {
     disconnect: disconnectGithub,
     reloadConnection,
   } = useGitHubConnection();
+
+  const {
+    connection: supabaseConnection,
+    isLoading: isSupabaseLoading,
+    isConnected: isSupabaseConnected,
+    disconnectSupabase: disconnectGlobalSupabase,
+    listTables,
+  } = useSupabaseConnection();
+
+  const [tables, setTables] = useState<string[]>([]);
+  const [loadingTables, setLoadingTables] = useState(false);
   
   const [integrations, setIntegrations] = useState<ProjectIntegration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [githubDisconnectConfirm, setGithubDisconnectConfirm] = useState(false);
+  const [supabaseDisconnectConfirm, setSupabaseDisconnectConfirm] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Handle GitHub OAuth callback messages
@@ -112,6 +126,30 @@ export const IntegrationsPanel: React.FC = () => {
   const handleGithubDisconnect = async () => {
     await disconnectGithub();
     setGithubDisconnectConfirm(false);
+  };
+
+  const handleSupabaseDisconnect = async () => {
+    await disconnectGlobalSupabase();
+    setSupabaseDisconnectConfirm(false);
+    setTables([]);
+  };
+
+  const handleLoadTables = async () => {
+    setLoadingTables(true);
+    try {
+      const tableList = await listTables();
+      setTables(tableList);
+      if (tableList.length === 0) {
+        toast({
+          title: "Sin tablas",
+          description: "No se encontraron tablas en la base de datos.",
+        });
+      }
+    } catch (error) {
+      console.error('Error loading tables:', error);
+    } finally {
+      setLoadingTables(false);
+    }
   };
 
   const connectedCount = integrations.filter(i => i.is_connected).length;
@@ -218,6 +256,140 @@ export const IntegrationsPanel: React.FC = () => {
                 <Github className="h-4 w-4 mr-2" />
                 Conectar con GitHub
               </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Supabase Global Connection */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Supabase
+              </CardTitle>
+              <CardDescription>
+                Conecta tu proyecto de Supabase para persistir datos y acceder a tablas.
+              </CardDescription>
+            </div>
+            {isSupabaseConnected ? (
+              <Badge variant="default" className="bg-green-500/20 text-green-600 border-green-500/30">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Conectado
+              </Badge>
+            ) : (
+              <Badge variant="secondary">
+                No conectado
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isSupabaseLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : isSupabaseConnected && supabaseConnection ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-lg border border-green-500/30 bg-green-500/5">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-green-500/20">
+                    <Database className="h-4 w-4 text-green-600" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">
+                        {supabaseConnection.project_name || 'Proyecto Supabase'}
+                      </span>
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Globe className="h-3 w-3" />
+                      <span className="font-mono truncate max-w-[200px]">{supabaseConnection.supabase_url}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                      <Shield className="h-3 w-3" />
+                      <span>Service Role Key configurada</span>
+                    </div>
+                  </div>
+                </div>
+                <Dialog open={supabaseDisconnectConfirm} onOpenChange={setSupabaseDisconnectConfirm}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                      <Unlink className="h-4 w-4 mr-2" />
+                      Desconectar
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>¿Desconectar Supabase?</DialogTitle>
+                      <DialogDescription>
+                        Esto eliminará la conexión con tu proyecto de Supabase. 
+                        Los datos en tu base de datos no serán afectados.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setSupabaseDisconnectConfirm(false)}>
+                        Cancelar
+                      </Button>
+                      <Button variant="destructive" onClick={handleSupabaseDisconnect}>
+                        Desconectar
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              {/* Tables section */}
+              <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Table className="h-4 w-4" />
+                    Tablas disponibles
+                  </h4>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLoadTables}
+                    disabled={loadingTables}
+                  >
+                    {loadingTables ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                {tables.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {tables.map((table) => (
+                      <Badge key={table} variant="secondary" className="font-mono text-xs">
+                        {table}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Haz clic en el botón para cargar las tablas disponibles.
+                  </p>
+                )}
+              </div>
+
+              {supabaseConnection.last_validated_at && (
+                <p className="text-xs text-muted-foreground">
+                  Última validación: {new Date(supabaseConnection.last_validated_at).toLocaleString('es-ES')}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <Database className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground mb-4">
+                Conecta tu proyecto de Supabase para persistir datos y acceder a tablas.
+              </p>
+              <SupabaseManualConnector />
             </div>
           )}
         </CardContent>

@@ -501,6 +501,42 @@ export type Database = {
         }
         Relationships: []
       }
+      supabase_connections: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          last_validated_at: string | null
+          project_name: string | null
+          supabase_service_key: string
+          supabase_url: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_validated_at?: string | null
+          project_name?: string | null
+          supabase_service_key: string
+          supabase_url: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_validated_at?: string | null
+          project_name?: string | null
+          supabase_service_key?: string
+          supabase_url?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
