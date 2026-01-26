@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useSettings } from '@/hooks/useSettings';
 import { useProjects, Project, ProjectBuild } from '@/hooks/useProjects';
 import { IntegrationsPanel } from '@/components/IntegrationsPanel';
-import { SupabaseConnector } from '@/components/SupabaseConnector';
+import { SupabaseManualConnector } from '@/components/SupabaseManualConnector';
 import { ProjectsGrid } from '@/components/ProjectsGrid';
 import { toast } from '@/hooks/use-toast';
 const ProjectCard: React.FC<{
@@ -82,7 +82,7 @@ const ProjectCard: React.FC<{
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <SupabaseConnector projectId={project.id} projectName={project.name} compact />
+          <SupabaseManualConnector compact />
           <Button
             variant="ghost"
             size="icon"

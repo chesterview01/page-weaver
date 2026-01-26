@@ -6,7 +6,7 @@ import VersionPanel from '@/components/VersionPanel';
 import SaveProjectDialog from '@/components/SaveProjectDialog';
 import AuthModal from '@/components/AuthModal';
 import PricingModal from '@/components/PricingModal';
-import { SupabaseConnector } from '@/components/SupabaseConnector';
+import { SupabaseManualConnector } from '@/components/SupabaseManualConnector';
 import { useChat } from '@/hooks/useChat';
 import { useSettings } from '@/hooks/useSettings';
 import { usePreviewWindow } from '@/hooks/usePreviewWindow';
@@ -96,11 +96,7 @@ const Index = () => {
           <div className="flex items-center justify-between p-2 border-b border-border bg-card/50">
             <span className="text-sm text-muted-foreground px-2">Vista previa</span>
             <div className="flex items-center gap-2">
-              <SupabaseConnector 
-                projectId={currentProjectId || undefined} 
-                projectName="Mi Proyecto"
-                compact 
-              />
+              <SupabaseManualConnector compact />
               <SaveProjectDialog 
                 onSave={saveToProject}
                 disabled={!lastBuildId}
