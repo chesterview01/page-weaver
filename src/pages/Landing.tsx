@@ -2,6 +2,13 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import AuthModal from '@/components/AuthModal';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel';
 import { 
   Sparkles, 
   Zap, 
@@ -21,10 +28,41 @@ import {
   Mail,
   Palette,
   Smartphone,
-  Clock
+  Clock,
+  Wand2,
+  MessageSquare,
+  Server
 } from 'lucide-react';
 import { motion, useScroll, useTransform, type Variants } from 'framer-motion';
 import { cn } from '@/lib/utils';
+
+// Tutorial steps for the mini-carousel
+const tutorialSteps = [
+  {
+    icon: Wand2,
+    step: 'Paso 1',
+    title: 'Diseña tu idea con IA',
+    description:
+      'Usa nuestra IA para diseñar y estructurar la idea de tu página en minutos, sin escribir una sola línea de código.',
+    gradient: 'from-primary to-accent',
+  },
+  {
+    icon: MessageSquare,
+    step: 'Paso 2',
+    title: 'Contáctanos con tu código',
+    description:
+      'Envíanos el código generado por la IA junto con tu visión, requisitos y objetivos de negocio.',
+    gradient: 'from-accent to-primary',
+  },
+  {
+    icon: Server,
+    step: 'Paso 3',
+    title: 'Ponemos tu web en producción',
+    description:
+      'Nuestro equipo profesional toma tu idea y la despliega con arquitectura escalable, segura y lista para crecer.',
+    gradient: 'from-primary via-accent to-primary',
+  },
+];
 
 // Animation variants with proper typing
 const fadeInUp: Variants = {
@@ -300,7 +338,7 @@ const Landing = () => {
             onClick={openRegister} 
             className="bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all hover:scale-105 shadow-lg shadow-primary/25"
           >
-            Comenzar gratis
+            Comienza a crear tu página gratis
           </Button>
         </div>
       </motion.nav>
@@ -352,7 +390,7 @@ const Landing = () => {
                   className="w-full sm:w-auto bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all hover:scale-105 text-lg px-8 py-6 shadow-xl shadow-primary/30 group"
                 >
                   <Rocket className="w-5 h-5 mr-2 group-hover:animate-bounce" />
-                  Comenzar gratis
+                  Comienza a crear tu página gratis
                   <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
                 <Button 
@@ -453,7 +491,62 @@ const Landing = () => {
           </div>
         </section>
 
+        {/* Tutorial Carousel Section */}
+        <motion.section
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-100px" }}
+          variants={staggerContainer}
+          className="py-24 md:py-28 px-6 md:px-12 lg:px-20 relative"
+        >
+          <div className="max-w-6xl mx-auto">
+            <motion.div variants={fadeInUp} className="text-center mb-14">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <span className="text-sm text-primary font-medium">Cómo funciona</span>
+              </div>
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 tracking-tight">
+                Servicios de programación y desarrollo web
+              </h2>
+              <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+                Un flujo simple en 3 pasos: tu idea, nuestra IA y un equipo profesional que la lleva a producción.
+              </p>
+            </motion.div>
+
+            <motion.div variants={fadeInUp} className="px-6 md:px-12">
+              <Carousel opts={{ align: 'start', loop: true }} className="w-full">
+                <CarouselContent>
+                  {tutorialSteps.map((step, i) => (
+                    <CarouselItem key={i} className="md:basis-1/2 lg:basis-1/3">
+                      <div className="group relative h-full p-8 rounded-2xl border border-border bg-card/60 backdrop-blur-sm hover:border-primary/40 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-300">
+                        <div className={cn("w-14 h-14 rounded-2xl bg-gradient-to-br flex items-center justify-center mb-6 shadow-lg", step.gradient)}>
+                          <step.icon className="w-7 h-7 text-white" />
+                        </div>
+                        <div className="text-xs uppercase tracking-widest text-primary font-semibold mb-2">
+                          {step.step}
+                        </div>
+                        <h3 className="text-xl font-bold mb-3 group-hover:text-primary transition-colors">
+                          {step.title}
+                        </h3>
+                        <p className="text-muted-foreground leading-relaxed">
+                          {step.description}
+                        </p>
+                        <div className="absolute top-6 right-6 text-5xl font-black text-primary/10 group-hover:text-primary/20 transition-colors">
+                          0{i + 1}
+                        </div>
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <CarouselPrevious />
+                <CarouselNext />
+              </Carousel>
+            </motion.div>
+          </div>
+        </motion.section>
+
         {/* Projects Showcase Section */}
+
         <motion.section 
           initial="hidden"
           whileInView="visible"

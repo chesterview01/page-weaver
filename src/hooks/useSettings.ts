@@ -26,15 +26,17 @@ export const useSettings = () => {
         .from('user_settings')
         .select('*')
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error;
-      
-      if (data) {
+      if (error) {
+        // Silent fail - fall back to defaults
+        console.warn('user_settings load skipped:', error.message);
+        setSettings(null);
+      } else if (data) {
         setSettings(data as UserSettings);
       }
     } catch (error) {
-      console.error('Error loading settings:', error);
+      console.warn('Error loading settings (silent):', error);
     } finally {
       setIsLoading(false);
     }

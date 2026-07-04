@@ -88,16 +88,42 @@ serve(async (req) => {
 
   try {
     const { messages, narrativeStyle = 'detailed', customApiUrl, customApiKey, useCustomAI } = await req.json();
-    
-    // Determine which API to use
+
+    // Default: Lovable AI Gateway
     let apiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
     let apiKey = Deno.env.get("LOVABLE_API_KEY");
-    
+    let model: string | undefined = "google/gemini-3-flash-preview";
+
+    // Admin-controlled AI dual system: read ai_provider_config via service role
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (supabaseUrl && serviceKey) {
+        const admin = createClient(supabaseUrl, serviceKey);
+        const { data: cfg } = await admin
+          .from("ai_provider_config")
+          .select("provider, gemini_api_key")
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (cfg?.provider === "gemini" && cfg.gemini_api_key) {
+          apiUrl = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+          apiKey = cfg.gemini_api_key;
+          model = "gemini-2.5-flash";
+        }
+      }
+    } catch (e) {
+      console.warn("ai_provider_config read failed, using default provider:", e);
+    }
+
+    // User-level custom API override still wins
     if (useCustomAI && customApiUrl && customApiKey) {
       apiUrl = customApiUrl;
       apiKey = customApiKey;
+      model = undefined;
     }
-    
+
     if (!apiKey) {
       throw new Error("API key is not configured");
     }
@@ -111,7 +137,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: useCustomAI ? undefined : "google/gemini-3-flash-preview",
+        model,
         messages: [
           { role: "system", content: systemPrompt },
           ...messages,

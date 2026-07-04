@@ -52,10 +52,11 @@ export const useGitHubConnection = () => {
         .from('github_connections')
         .select('id, user_id, github_username, repository_name, repository_url, created_at, updated_at')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error loading GitHub connection:', error);
+      if (error) {
+        // Silent fail - assume no connection
+        console.warn('github_connections load skipped:', error.message);
       }
 
       setConnection(data || null);
@@ -75,7 +76,8 @@ export const useGitHubConnection = () => {
         setStatus({ connected: false, username: null, organizations: null, repository: null });
       }
     } catch (error) {
-      console.error('Error loading GitHub connection:', error);
+      console.warn('Error loading GitHub connection (silent):', error);
+      setStatus({ connected: false, username: null, organizations: null, repository: null });
     } finally {
       setIsLoading(false);
     }
