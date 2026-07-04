@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_provider_config: {
+        Row: {
+          created_at: string
+          gemini_api_key: string | null
+          id: string
+          provider: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          gemini_api_key?: string | null
+          id?: string
+          provider?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          gemini_api_key?: string | null
+          id?: string
+          provider?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           id: string
@@ -670,6 +697,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_active_ai_provider: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
