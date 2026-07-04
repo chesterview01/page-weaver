@@ -12,6 +12,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import DeploymentConfigSection from '@/components/DeploymentConfigSection';
+import AIProviderConfigSection from '@/components/AIProviderConfigSection';
+import { Sparkles } from 'lucide-react';
 
 interface PaymentRequest {
   id: string;
