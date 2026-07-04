@@ -390,7 +390,7 @@ const Landing = () => {
                   className="w-full sm:w-auto bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all hover:scale-105 text-lg px-8 py-6 shadow-xl shadow-primary/30 group"
                 >
                   <Rocket className="w-5 h-5 mr-2 group-hover:animate-bounce" />
-                  Comenzar gratis
+                  Comienza a crear tu página gratis
                   <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
                 <Button 
