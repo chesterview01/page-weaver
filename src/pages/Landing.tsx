@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import AuthModal from '@/components/AuthModal';
+import { useAuthContext } from '@/contexts/AuthContext';
 import {
   Carousel,
   CarouselContent,
@@ -28,10 +29,7 @@ import {
   Mail,
   Palette,
   Smartphone,
-  Clock,
-  Wand2,
-  MessageSquare,
-  Server
+  Clock
 } from 'lucide-react';
 import { motion, useScroll, useTransform, type Variants } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -39,27 +37,24 @@ import { cn } from '@/lib/utils';
 // Tutorial steps for the mini-carousel
 const tutorialSteps = [
   {
-    icon: Wand2,
+    icon: Palette,
     step: 'Paso 1',
-    title: 'Diseña tu idea con IA',
-    description:
-      'Usa nuestra IA para diseñar y estructurar la idea de tu página en minutos, sin escribir una sola línea de código.',
+    title: 'Diseño',
+    description: 'Diseñamos la interfaz y el flujo de usuario.',
     gradient: 'from-primary to-accent',
   },
   {
-    icon: MessageSquare,
+    icon: Code2,
     step: 'Paso 2',
-    title: 'Contáctanos con tu código',
-    description:
-      'Envíanos el código generado por la IA junto con tu visión, requisitos y objetivos de negocio.',
+    title: 'Desarrollo',
+    description: 'Construimos la lógica, base de datos y funcionalidad con tecnología de nube, bases de datos en tiempo real y arquitectura de alto rendimiento.',
     gradient: 'from-accent to-primary',
   },
   {
-    icon: Server,
+    icon: Rocket,
     step: 'Paso 3',
-    title: 'Ponemos tu web en producción',
-    description:
-      'Nuestro equipo profesional toma tu idea y la despliega con arquitectura escalable, segura y lista para crecer.',
+    title: 'Producción',
+    description: 'Entregamos tu proyecto listo para usar y escalar.',
     gradient: 'from-primary via-accent to-primary',
   },
 ];
@@ -225,6 +220,7 @@ const ProjectCard = ({ project, index }: { project: typeof projectCards[0]; inde
 
 const Landing = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuthContext();
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   
@@ -233,13 +229,17 @@ const Landing = () => {
   const mockupY = useTransform(scrollY, [0, 500], [0, 100]);
   const mockupRotate = useTransform(scrollY, [0, 500], [0, 5]);
 
-  const openLogin = () => {
-    setAuthMode('login');
-    setAuthOpen(true);
+  const handleCTA = () => {
+    if (isAuthenticated) {
+      navigate('/app');
+    } else {
+      setAuthMode('register');
+      setAuthOpen(true);
+    }
   };
 
-  const openRegister = () => {
-    setAuthMode('register');
+  const openLogin = () => {
+    setAuthMode('login');
     setAuthOpen(true);
   };
 
@@ -335,10 +335,10 @@ const Landing = () => {
             Iniciar sesión
           </Button>
           <Button 
-            onClick={openRegister} 
+            onClick={handleCTA}
             className="bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all hover:scale-105 shadow-lg shadow-primary/25"
           >
-            Comienza a crear tu página gratis
+            Iniciar Proyecto
           </Button>
         </div>
       </motion.nav>
@@ -366,9 +366,9 @@ const Landing = () => {
                 variants={fadeInUp}
                 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold leading-[1.1] mb-6 tracking-tight"
               >
-                Crea proyectos
+                Convertimos tu idea
                 <span className="block bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent mt-2">
-                  increíbles con IA
+                  en un producto digital funcional
                 </span>
               </motion.h1>
 
@@ -376,8 +376,8 @@ const Landing = () => {
                 variants={fadeInUp}
                 className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto lg:mx-0 mb-10 leading-relaxed"
               >
-                Describe lo que quieres construir y nuestra IA generará el código por ti. 
-                Sin experiencia previa necesaria.
+                Diseño profesional, desarrollo ágil y despliegue inmediato.
+                Tú tienes la idea, nosotros construimos la realidad.
               </motion.p>
 
               <motion.div 
@@ -386,11 +386,11 @@ const Landing = () => {
               >
                 <Button 
                   size="lg" 
-                  onClick={openRegister}
+                  onClick={handleCTA}
                   className="w-full sm:w-auto bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all hover:scale-105 text-lg px-8 py-6 shadow-xl shadow-primary/30 group"
                 >
                   <Rocket className="w-5 h-5 mr-2 group-hover:animate-bounce" />
-                  Comienza a crear tu página gratis
+                  Iniciar Proyecto
                   <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
                 <Button 
@@ -491,6 +491,32 @@ const Landing = () => {
           </div>
         </section>
 
+        {/* Trust Section */}
+        <motion.section
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={fadeInUp}
+          className="py-12 border-y border-border/50 bg-muted/20 relative z-20"
+        >
+          <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-20">
+            <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16 text-center">
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-primary" />
+                <span className="text-sm font-medium">Soporte técnico dedicado</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Cloud className="w-5 h-5 text-primary" />
+                <span className="text-sm font-medium">Despliegue en Vercel</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Database className="w-5 h-5 text-primary" />
+                <span className="text-sm font-medium">Sincronización con bases de datos en tiempo real</span>
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
         {/* Tutorial Carousel Section */}
         <motion.section
           initial="hidden"
@@ -503,13 +529,13 @@ const Landing = () => {
             <motion.div variants={fadeInUp} className="text-center mb-14">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
                 <Sparkles className="w-4 h-4 text-primary" />
-                <span className="text-sm text-primary font-medium">Cómo funciona</span>
+                <span className="text-sm text-primary font-medium">Nuestro Proceso</span>
               </div>
               <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 tracking-tight">
-                Servicios de programación y desarrollo web
+                De la idea a la realidad en 3 pasos
               </h2>
               <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                Un flujo simple en 3 pasos: tu idea, nuestra IA y un equipo profesional que la lleva a producción.
+                Un flujo diseñado para la máxima claridad y resultados excepcionales.
               </p>
             </motion.div>
 
@@ -734,15 +760,15 @@ const Landing = () => {
                   ¿Listo para empezar?
                 </h2>
                 <p className="text-muted-foreground text-lg mb-10 max-w-lg mx-auto">
-                  Crea tu cuenta gratis y recibe 2 créditos para comenzar a construir tus proyectos.
+                  Únete a nosotros y convierte tu visión en un producto digital de éxito hoy mismo.
                 </p>
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
                   <Button 
                     size="lg" 
-                    onClick={openRegister}
+                    onClick={handleCTA}
                     className="bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all text-lg px-10 py-6 shadow-xl shadow-primary/30"
                   >
-                    Crear cuenta gratis
+                    Iniciar Proyecto
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </Button>
                 </motion.div>
