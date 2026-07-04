@@ -291,18 +291,22 @@ const Admin: React.FC = () => {
 
       <main className="container mx-auto px-4 py-8 max-w-6xl">
         <Tabs defaultValue="payments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 bg-card">
+          <TabsList className="grid w-full grid-cols-4 bg-card">
             <TabsTrigger value="payments" className="flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
-              Solicitudes de pago
+              Solicitudes
             </TabsTrigger>
             <TabsTrigger value="methods" className="flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
-              Métodos de pago
+              Métodos
             </TabsTrigger>
             <TabsTrigger value="deployment" className="flex items-center gap-2">
               <Server className="h-4 w-4" />
               Despliegue
+            </TabsTrigger>
+            <TabsTrigger value="ai" className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              IA Dual
             </TabsTrigger>
           </TabsList>
 
