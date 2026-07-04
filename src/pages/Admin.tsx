@@ -420,6 +420,11 @@ const Admin: React.FC = () => {
           <TabsContent value="deployment">
             <DeploymentConfigSection />
           </TabsContent>
+
+          {/* AI Dual Tab */}
+          <TabsContent value="ai">
+            <AIProviderConfigSection />
+          </TabsContent>
         </Tabs>
       </main>
     </div>
