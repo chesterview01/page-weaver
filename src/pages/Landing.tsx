@@ -338,7 +338,7 @@ const Landing = () => {
             onClick={openRegister} 
             className="bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all hover:scale-105 shadow-lg shadow-primary/25"
           >
-            Comenzar gratis
+            Comienza a crear tu página gratis
           </Button>
         </div>
       </motion.nav>
