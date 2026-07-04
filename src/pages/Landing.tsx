@@ -2,6 +2,13 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import AuthModal from '@/components/AuthModal';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel';
 import { 
   Sparkles, 
   Zap, 
@@ -21,10 +28,41 @@ import {
   Mail,
   Palette,
   Smartphone,
-  Clock
+  Clock,
+  Wand2,
+  MessageSquare,
+  Server
 } from 'lucide-react';
 import { motion, useScroll, useTransform, type Variants } from 'framer-motion';
 import { cn } from '@/lib/utils';
+
+// Tutorial steps for the mini-carousel
+const tutorialSteps = [
+  {
+    icon: Wand2,
+    step: 'Paso 1',
+    title: 'Diseña tu idea con IA',
+    description:
+      'Usa nuestra IA para diseñar y estructurar la idea de tu página en minutos, sin escribir una sola línea de código.',
+    gradient: 'from-primary to-accent',
+  },
+  {
+    icon: MessageSquare,
+    step: 'Paso 2',
+    title: 'Contáctanos con tu código',
+    description:
+      'Envíanos el código generado por la IA junto con tu visión, requisitos y objetivos de negocio.',
+    gradient: 'from-accent to-primary',
+  },
+  {
+    icon: Server,
+    step: 'Paso 3',
+    title: 'Ponemos tu web en producción',
+    description:
+      'Nuestro equipo profesional toma tu idea y la despliega con arquitectura escalable, segura y lista para crecer.',
+    gradient: 'from-primary via-accent to-primary',
+  },
+];
 
 // Animation variants with proper typing
 const fadeInUp: Variants = {
