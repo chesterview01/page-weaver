@@ -26,8 +26,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import AuthModal from '@/components/AuthModal';
 import { useSiteSettings, useBuiltProjects } from '@/hooks/useSiteContent';
-
-const Spline = lazy(() => import('@splinetool/react-spline'));
+import { HeroParallax } from '@/components/ui/hero-parallax';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 const SERVICES = [
   { icon: Server, title: 'Software empresarial', desc: 'Arquitectura y desarrollo de ERPs, CRMs y plataformas internas de misión crítica. Construimos ecosistemas digitales escalables y seguros que centralizan la operación de tu empresa, reducen la fricción y optimizan la toma de decisiones en tiempo real.' },
@@ -38,15 +38,82 @@ const SERVICES = [
   { icon: Workflow, title: 'Automatizaciones', desc: 'Interconexión inteligente de sistemas. Conectamos tus API, creamos flujos de trabajo complejos y programamos scripts personalizados para eliminar tareas manuales, reducir el error humano y acelerar tus procesos operativos.' },
 ];
 
-const SHOWCASE_IMAGES = [
-  'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1400&q=80',
-  'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1400&q=80',
-  'https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=1400&q=80',
-  'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1400&q=80',
-  'https://images.unsplash.com/photo-1552664730-d307ca884978?w=1400&q=80',
-  'https://images.unsplash.com/photo-1517430816045-df4b7de11d1d?w=1400&q=80',
-  'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1400&q=80',
-  'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=1400&q=80',
+const PRODUCTS = [
+  {
+    title: "Modern Dashboard",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80",
+  },
+  {
+    title: "Software Architecture",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80",
+  },
+  {
+    title: "Code Review",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1542831371-29b0f74f9713?w=800&q=80",
+  },
+  {
+    title: "Mobile Development",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&q=80",
+  },
+  {
+    title: "Data Analytics",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1551434678-e076c223a692?w=800&q=80",
+  },
+  {
+    title: "Cloud Infrastructure",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&q=80",
+  },
+  {
+    title: "Web Platforms",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1547658719-da2b51169166?w=800&q=80",
+  },
+  {
+    title: "AI Integration",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&q=80",
+  },
+  {
+    title: "E-commerce Solutions",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1557821552-17105176677c?w=800&q=80",
+  },
+  {
+    title: "Cybersecurity",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&q=80",
+  },
+  {
+    title: "DevOps Pipeline",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1618401471353-b98aadebc25a?w=800&q=80",
+  },
+  {
+    title: "UI/UX Design",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1586717791821-3f44a563eb4c?w=800&q=80",
+  },
+  {
+    title: "System Integration",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&q=80",
+  },
+  {
+    title: "Real-time Databases",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1558494949-ef010cbdcc51?w=800&q=80",
+  },
+  {
+    title: "Custom Software",
+    link: "#contacto",
+    thumbnail: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&q=80",
+  },
 ];
 
 const reveal = {
@@ -67,23 +134,17 @@ export default function Landing() {
   const [authOpen, setAuthOpen] = useState(false);
   const [contact, setContact] = useState({ name: '', email: '', message: '' });
   const [sending, setSending] = useState(false);
-  const heroRef = useRef<HTMLElement>(null);
   const servicesRef = useRef<HTMLElement>(null);
 
   const { settings } = useSiteSettings();
   const { projects } = useBuiltProjects();
+  const { isAuthenticated } = useAuthContext();
 
   const siteName = settings?.site_name || 'Chester Code';
-  const heroTitle = settings?.hero_title || 'Construimos software serio para empresas que escalan.';
-  const heroSubtitle = settings?.hero_subtitle || 'Diseñamos, desarrollamos y operamos plataformas web, sistemas internos y aplicaciones móviles con estándares de ingeniería de alta gama.';
 
   useEffect(() => {
     if (settings?.site_name) document.title = settings.site_name;
   }, [settings?.site_name]);
-
-  const { scrollYProgress: heroProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
-  const heroContentY = useTransform(heroProgress, [0, 1], ['0%', '15%']);
-  const heroGridY = useTransform(heroProgress, [0, 1], ['0%', '60%']);
 
   const { scrollYProgress: servicesProgress } = useScroll({ target: servicesRef, offset: ['start end', 'end start'] });
   const servicesBgY = useTransform(servicesProgress, [0, 1], ['-10%', '10%']);
@@ -104,12 +165,13 @@ export default function Landing() {
   }
 
   // split hero title so last word/segment gets gradient
-  const titleParts = (() => {
-    const parts = heroTitle.split(' ');
-    if (parts.length <= 3) return { first: '', last: heroTitle };
-    const cut = Math.ceil(parts.length / 2);
-    return { first: parts.slice(0, cut).join(' '), last: parts.slice(cut).join(' ') };
-  })();
+  const handleAction = () => {
+    if (isAuthenticated) {
+      navigate('/app');
+    } else {
+      setAuthOpen(true);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[hsl(220_40%_5%)] text-foreground">
@@ -128,81 +190,24 @@ export default function Landing() {
             <a href="#contacto" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Contacto</a>
           </nav>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)}>Entrar</Button>
-            <Button size="sm" className="bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90" onClick={() => setAuthOpen(true)}>
+            {!isAuthenticated ? (
+              <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)}>Entrar</Button>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => navigate('/app')}>Ir a la App</Button>
+            )}
+            <Button size="sm" className="bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90" onClick={handleAction}>
               Iniciar proyecto
             </Button>
           </div>
         </div>
       </header>
 
-      {/* HERO */}
-      <section ref={heroRef} className="relative min-h-screen overflow-hidden pt-24">
-        <motion.div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.08]"
-          style={{
-            backgroundImage: 'linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)',
-            backgroundSize: '72px 72px',
-            y: heroGridY,
-          }}
-        />
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.15),transparent_60%)]" />
-
-        <div className="relative mx-auto grid max-w-[1400px] grid-cols-1 items-center gap-8 px-6 py-16 lg:grid-cols-2 lg:gap-12">
-          <motion.div style={{ y: heroContentY }} className="relative z-10">
-            <Reveal>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-xs uppercase tracking-[0.22em] text-muted-foreground backdrop-blur">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                Agencia de Desarrollo de Software
-              </div>
-            </Reveal>
-
-            <Reveal delay={0.1}>
-              <h1 className="mt-6 text-balance text-5xl font-extrabold leading-[0.95] tracking-tighter md:text-7xl lg:text-[5.5rem]">
-                {titleParts.first ? <>{titleParts.first} </> : null}
-                <span className="bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
-                  {titleParts.last}
-                </span>
-              </h1>
-            </Reveal>
-
-            <Reveal delay={0.2}>
-              <p className="mt-6 max-w-xl text-lg text-muted-foreground md:text-xl">{heroSubtitle}</p>
-            </Reveal>
-
-            <Reveal delay={0.3}>
-              <div className="mt-10 flex flex-wrap items-center gap-4">
-                <Button size="lg" className="bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 group h-12 px-6 shadow-lg shadow-primary/20" onClick={() => setAuthOpen(true)}>
-                  Iniciar proyecto
-                  <ArrowUpRight className="ml-2 h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                </Button>
-                <Button size="lg" variant="outline" className="h-12 px-6 border-white/10 bg-white/[0.02] hover:bg-white/[0.05]" onClick={() => document.getElementById('servicios')?.scrollIntoView({ behavior: 'smooth' })}>
-                  Ver servicios
-                </Button>
-              </div>
-            </Reveal>
-
-            {/* SHOWCASE CAROUSEL — replaces stats */}
-            <Reveal delay={0.4}>
-              <div className="mt-14 relative">
-                <div className="text-xs uppercase tracking-[0.22em] text-muted-foreground mb-4">
-                  <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle bg-primary" />
-                  Nuestro trabajo en vivo
-                </div>
-                <ShowcaseMarquee images={SHOWCASE_IMAGES} />
-              </div>
-            </Reveal>
-          </motion.div>
-
-          {/* 3D ROBOT */}
-          <div className="relative h-[500px] w-full lg:h-[650px]">
-            <Suspense fallback={<div className="flex h-full w-full items-center justify-center"><div className="h-32 w-32 animate-pulse rounded-full bg-primary/20 blur-3xl" /></div>}>
-              <Spline scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode" />
-            </Suspense>
-          </div>
-        </div>
-      </section>
+      {/* HERO PARALLAX */}
+      <HeroParallax
+        products={PRODUCTS}
+        isAuthenticated={isAuthenticated}
+        onAuthClick={() => setAuthOpen(true)}
+      />
 
       {/* SERVICES */}
       <ServicesSticky sectionRef={servicesRef} bgY={servicesBgY} />
@@ -323,28 +328,6 @@ function SocialLink({ href, label, children }: { href: string; label: string; ch
   );
 }
 
-function ShowcaseMarquee({ images }: { images: string[] }) {
-  // duplicate list for seamless loop
-  const loop = [...images, ...images];
-  return (
-    <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] py-4">
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-[hsl(220_40%_5%)] to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-[hsl(220_40%_5%)] to-transparent" />
-      <motion.div
-        className="flex gap-4 w-max"
-        animate={{ x: ['0%', '-50%'] }}
-        transition={{ duration: 40, ease: 'linear', repeat: Infinity }}
-      >
-        {loop.map((src, i) => (
-          <div key={i} className="h-32 w-56 shrink-0 overflow-hidden rounded-lg border border-white/10 md:h-40 md:w-72">
-            <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
-          </div>
-        ))}
-      </motion.div>
-    </div>
-  );
-}
-
 function SectionHead({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
     <div>
@@ -366,7 +349,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function ServicesSticky({ sectionRef, bgY }: { sectionRef: React.RefObject<HTMLElement | null>; bgY: any }) {
+import { MotionValue } from 'framer-motion';
+
+function ServicesSticky({ sectionRef, bgY }: { sectionRef: React.RefObject<HTMLElement | null>; bgY: MotionValue<string> }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
