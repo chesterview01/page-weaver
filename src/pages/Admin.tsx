@@ -13,7 +13,8 @@ import { useAuthContext } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import DeploymentConfigSection from '@/components/DeploymentConfigSection';
 import AIProviderConfigSection from '@/components/AIProviderConfigSection';
-import { Sparkles } from 'lucide-react';
+import SiteContentSection from '@/components/SiteContentSection';
+import { Sparkles, LayoutTemplate } from 'lucide-react';
 
 interface PaymentRequest {
   id: string;
