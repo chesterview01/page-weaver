@@ -292,7 +292,7 @@ const Admin: React.FC = () => {
 
       <main className="container mx-auto px-4 py-8 max-w-6xl">
         <Tabs defaultValue="payments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-card">
+          <TabsList className="grid w-full grid-cols-5 bg-card">
             <TabsTrigger value="payments" className="flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
               Solicitudes
@@ -308,6 +308,10 @@ const Admin: React.FC = () => {
             <TabsTrigger value="ai" className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
               IA Dual
+            </TabsTrigger>
+            <TabsTrigger value="landing" className="flex items-center gap-2">
+              <LayoutTemplate className="h-4 w-4" />
+              Landing
             </TabsTrigger>
           </TabsList>
 
