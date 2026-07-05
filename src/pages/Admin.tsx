@@ -430,6 +430,11 @@ const Admin: React.FC = () => {
           <TabsContent value="ai">
             <AIProviderConfigSection />
           </TabsContent>
+
+          {/* Landing content tab */}
+          <TabsContent value="landing">
+            <SiteContentSection />
+          </TabsContent>
         </Tabs>
       </main>
     </div>
