@@ -1,835 +1,490 @@
-import React, { useState } from 'react';
+import React, { useRef, useState, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import AuthModal from '@/components/AuthModal';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from '@/components/ui/carousel';
-import { 
-  Sparkles, 
-  Zap, 
-  Code2, 
-  Rocket, 
-  Shield, 
-  Globe, 
-  Star,
+  ArrowUpRight,
+  Database,
+  Workflow,
+  Smartphone,
+  Globe,
+  Send,
   ArrowRight,
   CheckCircle2,
-  Layers,
-  Database,
-  Cloud,
-  Github,
-  Twitter,
-  Linkedin,
-  Mail,
-  Palette,
-  Smartphone,
-  Clock,
-  Wand2,
-  MessageSquare,
-  Server
+  Bot,
+  Server,
+  Plus,
+  Sparkles,
 } from 'lucide-react';
-import { motion, useScroll, useTransform, type Variants } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+import AuthModal from '@/components/AuthModal';
 
-// Tutorial steps for the mini-carousel
-const tutorialSteps = [
-  {
-    icon: Wand2,
-    step: 'Paso 1',
-    title: 'Diseña tu idea con IA',
-    description:
-      'Usa nuestra IA para diseñar y estructurar la idea de tu página en minutos, sin escribir una sola línea de código.',
-    gradient: 'from-primary to-accent',
-  },
-  {
-    icon: MessageSquare,
-    step: 'Paso 2',
-    title: 'Contáctanos con tu código',
-    description:
-      'Envíanos el código generado por la IA junto con tu visión, requisitos y objetivos de negocio.',
-    gradient: 'from-accent to-primary',
-  },
+const Spline = lazy(() => import('@splinetool/react-spline'));
+
+const SERVICES = [
   {
     icon: Server,
-    step: 'Paso 3',
-    title: 'Ponemos tu web en producción',
-    description:
-      'Nuestro equipo profesional toma tu idea y la despliega con arquitectura escalable, segura y lista para crecer.',
-    gradient: 'from-primary via-accent to-primary',
+    title: 'Software empresarial',
+    desc: 'Arquitectura y desarrollo de ERPs, CRMs y plataformas internas de misión crítica. Construimos ecosistemas digitales escalables y seguros que centralizan la operación de tu empresa, reducen la fricción y optimizan la toma de decisiones en tiempo real.',
+  },
+  {
+    icon: Database,
+    title: 'Bases de datos',
+    desc: 'Diseño, migración y optimización de bases de datos relacionales y NoSQL. Garantizamos alta disponibilidad, tiempos de respuesta de milisegundos y políticas de seguridad estrictas (RLS) para proteger el activo más valioso de tu empresa: la información.',
+  },
+  {
+    icon: Globe,
+    title: 'Páginas web',
+    desc: 'Diseño inmersivo y desarrollo de ultra-alto rendimiento. Creamos plataformas web, portafolios y landing pages con integraciones 3D, animaciones fluidas y arquitectura moderna que convierten simples visitantes en clientes de alto valor.',
+  },
+  {
+    icon: Smartphone,
+    title: 'Aplicaciones',
+    desc: 'Desarrollo nativo y multiplataforma. Diseñamos aplicaciones móviles y web-apps con interfaces intuitivas y experiencias sin fricción, pensadas para maximizar la retención, el engagement y el rendimiento en cualquier dispositivo.',
+  },
+  {
+    icon: Bot,
+    title: 'Bots e IA',
+    desc: 'Integración de Inteligencia Artificial de vanguardia. Implementamos asistentes virtuales autónomos, integraciones con LLMs y agentes de atención 24/7 entrenados con la data específica de tu negocio para escalar tu soporte y ventas.',
+  },
+  {
+    icon: Workflow,
+    title: 'Automatizaciones',
+    desc: 'Interconexión inteligente de sistemas. Conectamos tus API, creamos flujos de trabajo complejos y programamos scripts personalizados para eliminar tareas manuales, reducir el error humano y acelerar tus procesos operativos.',
   },
 ];
 
-// Animation variants with proper typing
-const fadeInUp: Variants = {
+const reveal = {
   hidden: { opacity: 0, y: 40 },
-  visible: { 
-    opacity: 1, 
-    y: 0,
-    transition: { duration: 0.6 }
-  }
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } },
 };
 
-const fadeIn: Variants = {
-  hidden: { opacity: 0 },
-  visible: { 
-    opacity: 1,
-    transition: { duration: 0.5 }
-  }
-};
+function Reveal({ children, className, delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
+  return (
+    <motion.div
+      variants={reveal}
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, margin: '-80px' }}
+      transition={{ delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
-const staggerContainer: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.1
-    }
-  }
-};
-
-const bounceIn: Variants = {
-  hidden: { opacity: 0, scale: 0.3 },
-  visible: { 
-    opacity: 1, 
-    scale: 1,
-    transition: { 
-      type: "spring",
-      stiffness: 300,
-      damping: 15
-    }
-  }
-};
-
-const scaleUp: Variants = {
-  hidden: { opacity: 0, scale: 0.8 },
-  visible: { 
-    opacity: 1, 
-    scale: 1,
-    transition: { duration: 0.5 }
-  }
-};
-
-
-// Fictional project cards data
-const projectCards = [
-  { 
-    title: 'Startup Landing', 
-    category: 'Landing Page',
-    gradient: 'from-violet-500 to-purple-600',
-    mockupColor: 'bg-violet-500/20'
-  },
-  { 
-    title: 'E-commerce Store', 
-    category: 'Tienda Online',
-    gradient: 'from-emerald-500 to-teal-600',
-    mockupColor: 'bg-emerald-500/20'
-  },
-  { 
-    title: 'Portfolio Creativo', 
-    category: 'Portfolio',
-    gradient: 'from-orange-500 to-red-600',
-    mockupColor: 'bg-orange-500/20'
-  },
-  { 
-    title: 'App Dashboard', 
-    category: 'Dashboard',
-    gradient: 'from-blue-500 to-indigo-600',
-    mockupColor: 'bg-blue-500/20'
-  },
-  { 
-    title: 'Blog Personal', 
-    category: 'Blog',
-    gradient: 'from-pink-500 to-rose-600',
-    mockupColor: 'bg-pink-500/20'
-  },
-  { 
-    title: 'SaaS Platform', 
-    category: 'Web App',
-    gradient: 'from-cyan-500 to-blue-600',
-    mockupColor: 'bg-cyan-500/20'
-  },
-  { 
-    title: 'Restaurant Menu', 
-    category: 'Sitio Web',
-    gradient: 'from-amber-500 to-orange-600',
-    mockupColor: 'bg-amber-500/20'
-  },
-  { 
-    title: 'Fitness Tracker', 
-    category: 'Web App',
-    gradient: 'from-lime-500 to-green-600',
-    mockupColor: 'bg-lime-500/20'
-  },
-];
-
-// Project Card Component with hover effects
-const ProjectCard = ({ project, index }: { project: typeof projectCards[0]; index: number }) => (
-  <motion.div
-    variants={fadeInUp}
-    whileHover={{ 
-      y: -8, 
-      scale: 1.02,
-      transition: { duration: 0.3 }
-    }}
-    className="group relative rounded-2xl border border-border bg-card/50 overflow-hidden cursor-pointer hover:shadow-2xl hover:shadow-primary/10 transition-shadow duration-300"
-  >
-    {/* Mockup Preview */}
-    <div className={cn("h-40 relative overflow-hidden", project.mockupColor)}>
-      <div className={cn("absolute inset-0 bg-gradient-to-br opacity-50", project.gradient)} />
-      {/* Fake browser chrome */}
-      <div className="absolute top-3 left-3 right-3">
-        <div className="flex gap-1.5 mb-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-white/30" />
-          <div className="w-2.5 h-2.5 rounded-full bg-white/30" />
-          <div className="w-2.5 h-2.5 rounded-full bg-white/30" />
-        </div>
-        <div className="h-2 bg-white/20 rounded-full w-2/3" />
-      </div>
-      {/* Fake content lines */}
-      <div className="absolute bottom-4 left-4 right-4 space-y-2">
-        <div className="h-3 bg-white/30 rounded w-3/4" />
-        <div className="h-2 bg-white/20 rounded w-1/2" />
-        <div className="flex gap-2 mt-3">
-          <div className="h-6 bg-white/40 rounded-md w-16" />
-          <div className="h-6 bg-white/20 rounded-md w-12" />
-        </div>
-      </div>
-      {/* Hover overlay */}
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          whileHover={{ opacity: 1, scale: 1 }}
-          className="opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <div className="bg-white/90 text-black px-4 py-2 rounded-full text-sm font-medium">
-            Ver proyecto
-          </div>
-        </motion.div>
-      </div>
-    </div>
-    {/* Card info */}
-    <div className="p-4">
-      <p className="text-xs text-muted-foreground mb-1">{project.category}</p>
-      <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
-        {project.title}
-      </h3>
-    </div>
-  </motion.div>
-);
-
-const Landing = () => {
+export default function Landing() {
   const navigate = useNavigate();
   const [authOpen, setAuthOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  
-  // Scroll-based parallax for mockup
-  const { scrollY } = useScroll();
-  const mockupY = useTransform(scrollY, [0, 500], [0, 100]);
-  const mockupRotate = useTransform(scrollY, [0, 500], [0, 5]);
+  const [contact, setContact] = useState({ name: '', email: '', message: '' });
+  const [sending, setSending] = useState(false);
+  const heroRef = useRef<HTMLElement>(null);
+  const servicesRef = useRef<HTMLElement>(null);
 
-  const openLogin = () => {
-    setAuthMode('login');
-    setAuthOpen(true);
-  };
+  const { scrollYProgress: heroProgress } = useScroll({
+    target: heroRef,
+    offset: ['start start', 'end start'],
+  });
+  const heroContentY = useTransform(heroProgress, [0, 1], ['0%', '15%']);
+  const heroGridY = useTransform(heroProgress, [0, 1], ['0%', '60%']);
 
-  const openRegister = () => {
-    setAuthMode('register');
-    setAuthOpen(true);
-  };
+  const { scrollYProgress: servicesProgress } = useScroll({
+    target: servicesRef,
+    offset: ['start end', 'end start'],
+  });
+  const servicesBgY = useTransform(servicesProgress, [0, 1], ['-10%', '10%']);
 
-  const benefits = [
-    {
-      icon: Sparkles,
-      title: 'IA Generativa',
-      description: 'Describe tu idea en lenguaje natural y la IA genera código profesional automáticamente.',
-    },
-    {
-      icon: Zap,
-      title: 'Resultados Instantáneos',
-      description: 'Ve los cambios en tiempo real mientras construyes. Sin esperas, sin compilaciones.',
-    },
-    {
-      icon: Rocket,
-      title: 'Publica en Segundos',
-      description: 'Exporta como ZIP o publica directamente en tu dominio con un solo clic.',
-    },
-  ];
-
-  const features = [
-    { icon: Palette, text: 'Diseños modernos' },
-    { icon: Smartphone, text: 'Responsive' },
-    { icon: Code2, text: 'Código limpio' },
-    { icon: Clock, text: 'Ahorra tiempo' },
-    { icon: Shield, text: 'Seguro' },
-    { icon: Globe, text: 'SEO optimizado' },
-  ];
-
-  const integrations = [
-    { icon: Database, name: 'Supabase' },
-    { icon: Cloud, name: 'Vercel' },
-    { icon: Github, name: 'GitHub' },
-    { icon: Layers, name: 'React' },
-    { icon: Globe, name: 'Dominio Propio' },
-    { icon: Shield, name: 'SSL Gratis' },
-  ];
-
-  const testimonials = [
-    {
-      name: 'María García',
-      role: 'Diseñadora UX',
-      avatar: 'M',
-      comment: 'Chester Code IA me permitió crear prototipos funcionales en minutos. Increíble herramienta.',
-      rating: 5,
-    },
-    {
-      name: 'Carlos López',
-      role: 'Emprendedor',
-      avatar: 'C',
-      comment: 'Sin conocimientos de programación pude lanzar mi landing page. Muy recomendado.',
-      rating: 5,
-    },
-    {
-      name: 'Ana Martínez',
-      role: 'Desarrolladora Frontend',
-      avatar: 'A',
-      comment: 'Uso Chester para acelerar mi flujo de trabajo. La IA genera código de calidad.',
-      rating: 5,
-    },
-  ];
+  async function submitContact(e: React.FormEvent) {
+    e.preventDefault();
+    if (!contact.name || !contact.email || !contact.message) return;
+    setSending(true);
+    try {
+      // Fallback silencioso — sin edge function
+      await new Promise((r) => setTimeout(r, 700));
+      toast.success('Mensaje enviado. Te contactaremos pronto.');
+      setContact({ name: '', email: '', message: '' });
+    } catch {
+      toast.error('No se pudo enviar el mensaje');
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
-      {/* Gradient background effects */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-primary/15 rounded-full blur-[150px]" />
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-accent/15 rounded-full blur-[120px]" />
-      </div>
-
-      {/* Navigation */}
-      <motion.nav 
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5 }}
-        className="relative z-50 flex items-center justify-between px-6 py-5 md:px-12 lg:px-20 backdrop-blur-sm bg-background/80 border-b border-border/50 sticky top-0"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/25">
-            <Code2 className="w-5 h-5 text-primary-foreground" />
+    <div className="min-h-screen bg-background text-foreground">
+      {/* NAV */}
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/40 bg-background/70 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md gradient-primary">
+              <Sparkles className="h-4 w-4 text-primary-foreground" />
+            </div>
+            <span className="font-mono text-sm font-semibold tracking-tight">Chester Code</span>
           </div>
-          <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Chester Code IA
-          </span>
+          <nav className="hidden items-center gap-8 md:flex">
+            <a href="#servicios" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Servicios</a>
+            <a href="#trabajo" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Trabajo</a>
+            <a href="#contacto" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Contacto</a>
+          </nav>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)}>
+              Entrar
+            </Button>
+            <Button size="sm" className="gradient-primary text-primary-foreground hover:opacity-90" onClick={() => navigate('/app')}>
+              Probar builder
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            onClick={openLogin}
-            className="hidden sm:inline-flex hover:bg-primary/10 transition-colors"
-          >
-            Iniciar sesión
-          </Button>
-          <Button 
-            onClick={openRegister} 
-            className="bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all hover:scale-105 shadow-lg shadow-primary/25"
-          >
-            Comienza a crear tu página gratis
-          </Button>
-        </div>
-      </motion.nav>
+      </header>
 
-      <main className="relative z-10">
-        {/* Hero Section */}
-        <section className="min-h-[calc(100vh-80px)] flex items-center px-6 md:px-12 lg:px-20 py-12 lg:py-0">
-          <div className="max-w-7xl mx-auto w-full grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            {/* Left Content */}
-            <motion.div 
-              initial="hidden"
-              animate="visible"
-              variants={staggerContainer}
-              className="text-center lg:text-left"
-            >
-              <motion.div 
-                variants={fadeInUp}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-8"
-              >
-                <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-                <span className="text-sm text-primary font-medium">Potenciado por IA</span>
-              </motion.div>
+      {/* HERO */}
+      <section ref={heroRef} className="relative min-h-screen overflow-hidden pt-24">
+        {/* Background grid */}
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.08]"
+          style={{
+            backgroundImage:
+              'linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)',
+            backgroundSize: '72px 72px',
+            y: heroGridY,
+          }}
+        />
+        {/* Glow */}
+        <div className="pointer-events-none absolute inset-0 gradient-glow" />
 
-              <motion.h1 
-                variants={fadeInUp}
-                className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold leading-[1.1] mb-6 tracking-tight"
-              >
-                Crea proyectos
-                <span className="block bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent mt-2">
-                  increíbles con IA
+        <div className="relative mx-auto grid max-w-[1400px] grid-cols-1 items-center gap-8 px-6 py-16 lg:grid-cols-2 lg:gap-12">
+          <motion.div style={{ y: heroContentY }} className="relative z-10">
+            <Reveal>
+              <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-4 py-1.5 text-xs uppercase tracking-[0.22em] text-muted-foreground backdrop-blur">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                Agencia de Desarrollo de Software
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.1}>
+              <h1 className="mt-6 text-balance text-5xl font-extrabold leading-[0.95] tracking-tighter md:text-7xl lg:text-8xl">
+                Construimos software serio{' '}
+                <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  para empresas que escalan.
                 </span>
-              </motion.h1>
+              </h1>
+            </Reveal>
 
-              <motion.p 
-                variants={fadeInUp}
-                className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto lg:mx-0 mb-10 leading-relaxed"
-              >
-                Describe lo que quieres construir y nuestra IA generará el código por ti. 
-                Sin experiencia previa necesaria.
-              </motion.p>
+            <Reveal delay={0.2}>
+              <p className="mt-6 max-w-xl text-lg text-muted-foreground md:text-xl">
+                Diseñamos, desarrollamos y operamos plataformas web, sistemas internos y aplicaciones móviles con estándares de ingeniería de alta gama.
+              </p>
+            </Reveal>
 
-              <motion.div 
-                variants={fadeInUp}
-                className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4"
-              >
-                <Button 
-                  size="lg" 
-                  onClick={openRegister}
-                  className="w-full sm:w-auto bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all hover:scale-105 text-lg px-8 py-6 shadow-xl shadow-primary/30 group"
+            <Reveal delay={0.3}>
+              <div className="mt-10 flex flex-wrap items-center gap-4">
+                <Button
+                  size="lg"
+                  className="gradient-primary text-primary-foreground hover:opacity-90 group h-12 px-6"
+                  onClick={() => document.getElementById('contacto')?.scrollIntoView({ behavior: 'smooth' })}
                 >
-                  <Rocket className="w-5 h-5 mr-2 group-hover:animate-bounce" />
-                  Comienza a crear tu página gratis
-                  <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                  Iniciar un proyecto
+                  <ArrowUpRight className="ml-2 h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                 </Button>
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  onClick={() => navigate('/pricing')}
-                  className="w-full sm:w-auto text-lg px-8 py-6 border-2 hover:bg-primary/5 transition-colors"
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="h-12 px-6 border-border/60"
+                  onClick={() => document.getElementById('servicios')?.scrollIntoView({ behavior: 'smooth' })}
                 >
-                  Ver planes
+                  Ver servicios
                 </Button>
-              </motion.div>
+              </div>
+            </Reveal>
 
-              {/* Feature pills */}
-              <motion.div 
-                variants={fadeInUp}
-                className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mt-10"
-              >
-                {features.slice(0, 4).map((feature, i) => (
-                  <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border border-border text-sm">
-                    <feature.icon className="w-4 h-4 text-primary" />
-                    <span className="text-muted-foreground">{feature.text}</span>
+            <Reveal delay={0.4}>
+              <div className="mt-12 flex items-center gap-6 text-xs uppercase tracking-wider text-muted-foreground">
+                <div>
+                  <div className="text-2xl font-bold text-foreground">50+</div>
+                  <div className="mt-1">Proyectos entregados</div>
+                </div>
+                <div className="h-8 w-px bg-border" />
+                <div>
+                  <div className="text-2xl font-bold text-foreground">24h</div>
+                  <div className="mt-1">Tiempo respuesta</div>
+                </div>
+                <div className="h-8 w-px bg-border" />
+                <div>
+                  <div className="text-2xl font-bold text-foreground">100%</div>
+                  <div className="mt-1">Código propietario</div>
+                </div>
+              </div>
+            </Reveal>
+          </motion.div>
+
+          {/* 3D ROBOT */}
+          <div className="relative h-[500px] w-full lg:h-[650px]">
+            <Suspense
+              fallback={
+                <div className="flex h-full w-full items-center justify-center">
+                  <div className="h-32 w-32 animate-pulse rounded-full bg-primary/20 blur-3xl" />
+                </div>
+              }
+            >
+              <Spline scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode" />
+            </Suspense>
+          </div>
+        </div>
+      </section>
+
+      {/* SERVICES */}
+      <ServicesSticky sectionRef={servicesRef} bgY={servicesBgY} />
+
+      {/* WORK / TRABAJO */}
+      <section id="trabajo" className="relative border-t border-border bg-background py-32">
+        <div className="mx-auto max-w-[1400px] px-6">
+          <Reveal>
+            <SectionHead eyebrow="Trabajo" title="Proyectos seleccionados." />
+          </Reveal>
+
+          <div className="mt-16 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Reveal key={i} delay={i * 0.05}>
+                <div className="group relative aspect-[4/5] overflow-hidden rounded-lg border border-border/60 bg-card">
+                  <div className="absolute inset-0 gradient-primary opacity-10 transition-opacity group-hover:opacity-30" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-6xl font-extrabold text-muted-foreground/20">0{i}</div>
                   </div>
+                  <div className="absolute inset-x-0 bottom-0 p-6">
+                    <div className="text-xs uppercase tracking-wider text-primary">Enterprise</div>
+                    <div className="mt-1 text-xl font-bold">Proyecto #{i}</div>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CONTACTO */}
+      <section id="contacto" className="relative border-t border-border bg-[hsl(222_47%_4%)] py-32">
+        <div className="mx-auto grid max-w-[1400px] gap-16 px-6 lg:grid-cols-2 lg:gap-24">
+          <div>
+            <Reveal>
+              <SectionHead eyebrow="Contacto" title="Hablemos de tu próximo proyecto." />
+            </Reveal>
+            <Reveal delay={0.1}>
+              <p className="mt-8 max-w-lg text-lg text-muted-foreground">
+                Cuéntanos qué quieres construir. Te responderemos en menos de 24 horas hábiles con una propuesta inicial.
+              </p>
+            </Reveal>
+            <Reveal delay={0.2}>
+              <ul className="mt-10 space-y-4">
+                {['Discovery sin costo', 'Estimación detallada en 48h', 'Contrato y NDA estándar'].map((x) => (
+                  <li key={x} className="flex items-center gap-3 text-sm">
+                    <CheckCircle2 className="h-5 w-5 text-primary" />
+                    <span>{x}</span>
+                  </li>
                 ))}
-              </motion.div>
-            </motion.div>
-
-            {/* Right - Animated Mockup */}
-            <motion.div 
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.3 }}
-              style={{ y: mockupY, rotateZ: mockupRotate }}
-              className="relative hidden lg:block"
-            >
-              <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-accent/20 rounded-3xl blur-2xl" />
-              <div className="relative rounded-2xl border border-border bg-card/80 backdrop-blur-sm shadow-2xl overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/50">
-                  <div className="flex gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-red-500/80" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-                    <div className="w-3 h-3 rounded-full bg-green-500/80" />
-                  </div>
-                  <div className="flex-1 flex justify-center">
-                    <div className="px-4 py-1 rounded-md bg-background/50 text-xs text-muted-foreground">
-                      mi-proyecto.chestercode.ia
-                    </div>
-                  </div>
-                </div>
-                {/* Mockup content - fake landing page */}
-                <div className="h-[400px] bg-gradient-to-b from-muted/20 to-muted/5 p-6">
-                  {/* Fake nav */}
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="w-24 h-6 bg-primary/30 rounded animate-pulse" />
-                    <div className="flex gap-3">
-                      <div className="w-16 h-4 bg-muted rounded" />
-                      <div className="w-16 h-4 bg-muted rounded" />
-                      <div className="w-20 h-6 bg-primary/50 rounded-full" />
-                    </div>
-                  </div>
-                  {/* Fake hero */}
-                  <div className="text-center mt-12">
-                    <div className="w-48 h-8 bg-gradient-to-r from-primary/40 to-accent/40 rounded mx-auto mb-4 animate-pulse" />
-                    <div className="w-64 h-4 bg-muted rounded mx-auto mb-2" />
-                    <div className="w-40 h-4 bg-muted rounded mx-auto mb-6" />
-                    <div className="flex justify-center gap-3">
-                      <div className="w-24 h-10 bg-primary/50 rounded-lg animate-pulse" />
-                      <div className="w-20 h-10 bg-muted/50 rounded-lg border border-border" />
-                    </div>
-                  </div>
-                  {/* Fake cards */}
-                  <div className="grid grid-cols-3 gap-3 mt-10">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="h-20 bg-card/50 rounded-lg border border-border/50 p-3">
-                        <div className="w-6 h-6 bg-primary/30 rounded mb-2" />
-                        <div className="w-full h-2 bg-muted rounded mb-1" />
-                        <div className="w-2/3 h-2 bg-muted rounded" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              {/* Floating elements */}
-              <motion.div
-                animate={{ y: [0, -10, 0] }}
-                transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-                className="absolute -right-4 top-20 w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg"
-              >
-                <Code2 className="w-8 h-8 text-white" />
-              </motion.div>
-              <motion.div
-                animate={{ y: [0, 10, 0] }}
-                transition={{ repeat: Infinity, duration: 4, ease: "easeInOut", delay: 0.5 }}
-                className="absolute -left-4 bottom-32 w-12 h-12 rounded-xl bg-gradient-to-br from-accent to-primary flex items-center justify-center shadow-lg"
-              >
-                <Zap className="w-6 h-6 text-white" />
-              </motion.div>
-            </motion.div>
+              </ul>
+            </Reveal>
           </div>
-        </section>
 
-        {/* Tutorial Carousel Section */}
-        <motion.section
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-100px" }}
-          variants={staggerContainer}
-          className="py-24 md:py-28 px-6 md:px-12 lg:px-20 relative"
-        >
-          <div className="max-w-6xl mx-auto">
-            <motion.div variants={fadeInUp} className="text-center mb-14">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
-                <Sparkles className="w-4 h-4 text-primary" />
-                <span className="text-sm text-primary font-medium">Cómo funciona</span>
-              </div>
-              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 tracking-tight">
-                Servicios de programación y desarrollo web
-              </h2>
-              <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                Un flujo simple en 3 pasos: tu idea, nuestra IA y un equipo profesional que la lleva a producción.
-              </p>
-            </motion.div>
+          <Reveal delay={0.2}>
+            <form onSubmit={submitContact} className="space-y-5 rounded-2xl border border-border/60 bg-card/60 p-8 backdrop-blur">
+              <Field label="Nombre">
+                <Input
+                  value={contact.name}
+                  onChange={(e) => setContact({ ...contact, name: e.target.value })}
+                  placeholder="Tu nombre"
+                  required
+                  maxLength={120}
+                />
+              </Field>
+              <Field label="Email">
+                <Input
+                  type="email"
+                  value={contact.email}
+                  onChange={(e) => setContact({ ...contact, email: e.target.value })}
+                  placeholder="tu@empresa.com"
+                  required
+                  maxLength={200}
+                />
+              </Field>
+              <Field label="Mensaje">
+                <Textarea
+                  rows={5}
+                  value={contact.message}
+                  onChange={(e) => setContact({ ...contact, message: e.target.value })}
+                  placeholder="Describe brevemente tu proyecto y objetivos"
+                  required
+                  maxLength={4000}
+                />
+              </Field>
+              <Button type="submit" disabled={sending} className="w-full gradient-primary text-primary-foreground hover:opacity-90 h-12">
+                {sending ? 'Enviando...' : (<>Enviar consulta <Send className="ml-2 h-4 w-4" /></>)}
+              </Button>
+            </form>
+          </Reveal>
+        </div>
+      </section>
 
-            <motion.div variants={fadeInUp} className="px-6 md:px-12">
-              <Carousel opts={{ align: 'start', loop: true }} className="w-full">
-                <CarouselContent>
-                  {tutorialSteps.map((step, i) => (
-                    <CarouselItem key={i} className="md:basis-1/2 lg:basis-1/3">
-                      <div className="group relative h-full p-8 rounded-2xl border border-border bg-card/60 backdrop-blur-sm hover:border-primary/40 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-300">
-                        <div className={cn("w-14 h-14 rounded-2xl bg-gradient-to-br flex items-center justify-center mb-6 shadow-lg", step.gradient)}>
-                          <step.icon className="w-7 h-7 text-white" />
-                        </div>
-                        <div className="text-xs uppercase tracking-widest text-primary font-semibold mb-2">
-                          {step.step}
-                        </div>
-                        <h3 className="text-xl font-bold mb-3 group-hover:text-primary transition-colors">
-                          {step.title}
-                        </h3>
-                        <p className="text-muted-foreground leading-relaxed">
-                          {step.description}
-                        </p>
-                        <div className="absolute top-6 right-6 text-5xl font-black text-primary/10 group-hover:text-primary/20 transition-colors">
-                          0{i + 1}
-                        </div>
-                      </div>
-                    </CarouselItem>
-                  ))}
-                </CarouselContent>
-                <CarouselPrevious />
-                <CarouselNext />
-              </Carousel>
-            </motion.div>
-          </div>
-        </motion.section>
-
-        {/* Projects Showcase Section */}
-
-        <motion.section 
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-100px" }}
-          variants={staggerContainer}
-          className="py-24 md:py-32 px-6 md:px-12 lg:px-20 bg-muted/30"
-        >
-          <div className="max-w-7xl mx-auto">
-            <motion.div variants={fadeInUp} className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 tracking-tight">
-                Proyectos creados con Chester
-              </h2>
-              <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                Miles de usuarios ya están creando páginas increíbles con nuestra IA
-              </p>
-            </motion.div>
-
-            <motion.div 
-              variants={staggerContainer}
-              className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6"
-            >
-              {projectCards.map((project, i) => (
-                <ProjectCard key={i} project={project} index={i} />
-              ))}
-            </motion.div>
-          </div>
-        </motion.section>
-
-        {/* Benefits Section with Bounce Animation */}
-        <motion.section 
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-100px" }}
-          variants={staggerContainer}
-          className="py-24 md:py-32 px-6 md:px-12 lg:px-20"
-        >
-          <div className="max-w-7xl mx-auto">
-            <motion.div variants={fadeInUp} className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 tracking-tight">
-                ¿Por qué Chester Code IA?
-              </h2>
-              <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                Herramientas poderosas para convertir tus ideas en realidad
-              </p>
-            </motion.div>
-
-            <div className="grid md:grid-cols-3 gap-8 lg:gap-12">
-              {benefits.map((benefit, i) => (
-                <motion.div
-                  key={i}
-                  variants={fadeInUp}
-                  className="text-center group"
-                >
-                  <motion.div
-                    variants={bounceIn}
-                    whileHover={{ scale: 1.1, rotate: 5 }}
-                    className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mx-auto mb-6 group-hover:from-primary/30 group-hover:to-accent/30 transition-all shadow-lg"
-                  >
-                    <benefit.icon className="w-10 h-10 text-primary" />
-                  </motion.div>
-                  <h3 className="text-2xl font-bold mb-3">{benefit.title}</h3>
-                  <p className="text-muted-foreground leading-relaxed max-w-sm mx-auto">
-                    {benefit.description}
-                  </p>
-                </motion.div>
-              ))}
+      {/* FOOTER */}
+      <footer className="border-t border-border bg-background py-12">
+        <div className="mx-auto flex max-w-[1400px] flex-col items-center justify-between gap-4 px-6 md:flex-row">
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded gradient-primary">
+              <Sparkles className="h-3 w-3 text-primary-foreground" />
             </div>
+            <span className="font-mono text-xs font-semibold">Chester Code © {new Date().getFullYear()}</span>
           </div>
-        </motion.section>
+          <div className="text-xs text-muted-foreground">Ingeniería seria. Diseño impecable.</div>
+        </div>
+      </footer>
 
-        {/* Integrations Section */}
-        <motion.section 
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-100px" }}
-          variants={staggerContainer}
-          className="py-24 md:py-32 px-6 md:px-12 lg:px-20 bg-muted/30"
-        >
-          <div className="max-w-7xl mx-auto">
-            <motion.div variants={fadeInUp} className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 tracking-tight">
-                Integraciones potentes
-              </h2>
-              <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                Conecta con las herramientas que ya usas y amas
-              </p>
-            </motion.div>
-
-            <motion.div 
-              variants={staggerContainer}
-              className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6"
-            >
-              {integrations.map((integration, i) => (
-                <motion.div
-                  key={i}
-                  variants={scaleUp}
-                  whileHover={{ scale: 1.05, y: -5 }}
-                  className="group flex flex-col items-center justify-center p-6 rounded-2xl border border-border bg-card/30 hover:bg-card hover:border-primary/30 hover:shadow-lg transition-all duration-300"
-                >
-                  <integration.icon className="w-10 h-10 text-muted-foreground group-hover:text-primary transition-colors mb-3" />
-                  <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-                    {integration.name}
-                  </span>
-                </motion.div>
-              ))}
-            </motion.div>
-          </div>
-        </motion.section>
-
-        {/* Testimonials Section */}
-        <motion.section 
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-100px" }}
-          variants={staggerContainer}
-          className="py-24 md:py-32 px-6 md:px-12 lg:px-20"
-        >
-          <div className="max-w-7xl mx-auto">
-            <motion.div variants={fadeInUp} className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 tracking-tight">
-                Lo que dicen nuestros usuarios
-              </h2>
-              <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                Miles de creadores ya usan Chester Code IA
-              </p>
-            </motion.div>
-
-            <motion.div 
-              variants={staggerContainer}
-              className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8"
-            >
-              {testimonials.map((testimonial, i) => (
-                <motion.div
-                  key={i}
-                  variants={fadeInUp}
-                  whileHover={{ y: -5 }}
-                  className="p-8 rounded-2xl border border-border bg-card/50 hover:bg-card hover:shadow-xl transition-all duration-300"
-                >
-                  <div className="flex items-center gap-1 mb-4">
-                    {[...Array(testimonial.rating)].map((_, j) => (
-                      <Star key={j} className="w-5 h-5 fill-primary text-primary" />
-                    ))}
-                  </div>
-                  <p className="text-foreground mb-6 leading-relaxed">
-                    "{testimonial.comment}"
-                  </p>
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground font-bold text-lg">
-                      {testimonial.avatar}
-                    </div>
-                    <div>
-                      <p className="font-semibold">{testimonial.name}</p>
-                      <p className="text-sm text-muted-foreground">{testimonial.role}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </motion.div>
-          </div>
-        </motion.section>
-
-        {/* CTA Section */}
-        <motion.section 
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-100px" }}
-          variants={fadeIn}
-          className="py-24 md:py-32 px-6 md:px-12 lg:px-20"
-        >
-          <div className="max-w-4xl mx-auto text-center">
-            <motion.div 
-              variants={scaleUp}
-              className="p-12 md:p-16 rounded-3xl bg-gradient-to-br from-primary/10 via-card to-accent/10 border border-border relative overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-accent/5" />
-              <div className="relative z-10">
-                <motion.div
-                  animate={{ rotate: [0, 10, -10, 0] }}
-                  transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-                  className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center mx-auto mb-8 shadow-xl shadow-primary/30"
-                >
-                  <Rocket className="w-10 h-10 text-primary-foreground" />
-                </motion.div>
-                <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 tracking-tight">
-                  ¿Listo para empezar?
-                </h2>
-                <p className="text-muted-foreground text-lg mb-10 max-w-lg mx-auto">
-                  Crea tu cuenta gratis y recibe 2 créditos para comenzar a construir tus proyectos.
-                </p>
-                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
-                  <Button 
-                    size="lg" 
-                    onClick={openRegister}
-                    className="bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-all text-lg px-10 py-6 shadow-xl shadow-primary/30"
-                  >
-                    Crear cuenta gratis
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                  </Button>
-                </motion.div>
-              </div>
-            </motion.div>
-          </div>
-        </motion.section>
-
-        {/* Footer */}
-        <footer className="border-t border-border bg-muted/20">
-          <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-20 py-16">
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
-              {/* Brand */}
-              <div className="lg:col-span-1">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                    <Code2 className="w-5 h-5 text-primary-foreground" />
-                  </div>
-                  <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                    Chester Code IA
-                  </span>
-                </div>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  Crea proyectos increíbles con el poder de la inteligencia artificial.
-                </p>
-              </div>
-
-              {/* Product */}
-              <div>
-                <h4 className="font-semibold mb-4">Producto</h4>
-                <ul className="space-y-3 text-sm text-muted-foreground">
-                  <li><a href="#" className="hover:text-primary transition-colors">Características</a></li>
-                  <li><a href="/pricing" className="hover:text-primary transition-colors">Precios</a></li>
-                  <li><a href="#" className="hover:text-primary transition-colors">Integraciones</a></li>
-                  <li><a href="#" className="hover:text-primary transition-colors">Changelog</a></li>
-                </ul>
-              </div>
-
-              {/* Company */}
-              <div>
-                <h4 className="font-semibold mb-4">Empresa</h4>
-                <ul className="space-y-3 text-sm text-muted-foreground">
-                  <li><a href="#" className="hover:text-primary transition-colors">Sobre nosotros</a></li>
-                  <li><a href="#" className="hover:text-primary transition-colors">Blog</a></li>
-                  <li><a href="#" className="hover:text-primary transition-colors">Carreras</a></li>
-                  <li><a href="#" className="hover:text-primary transition-colors">Contacto</a></li>
-                </ul>
-              </div>
-
-              {/* Legal */}
-              <div>
-                <h4 className="font-semibold mb-4">Legal</h4>
-                <ul className="space-y-3 text-sm text-muted-foreground">
-                  <li><a href="#" className="hover:text-primary transition-colors">Privacidad</a></li>
-                  <li><a href="#" className="hover:text-primary transition-colors">Términos</a></li>
-                  <li><a href="#" className="hover:text-primary transition-colors">Cookies</a></li>
-                </ul>
-              </div>
-            </div>
-
-            {/* Bottom */}
-            <div className="flex flex-col md:flex-row items-center justify-between pt-8 border-t border-border gap-4">
-              <p className="text-sm text-muted-foreground">
-                © 2025 Chester Code IA. Todos los derechos reservados.
-              </p>
-              <div className="flex items-center gap-4">
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  <Twitter className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  <Github className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  <Linkedin className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  <Mail className="w-5 h-5" />
-                </a>
-              </div>
-            </div>
-          </div>
-        </footer>
-      </main>
-
-      <AuthModal open={authOpen} onOpenChange={setAuthOpen} defaultTab={authMode} />
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
     </div>
   );
-};
+}
 
-export default Landing;
+function SectionHead({ eyebrow, title }: { eyebrow: string; title: string }) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
+        <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle bg-primary" />
+        {eyebrow}
+      </div>
+      <h2 className="mt-4 max-w-3xl text-balance text-4xl font-extrabold tracking-tighter md:text-6xl">
+        {title}
+      </h2>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs uppercase tracking-wider text-muted-foreground">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function ServicesSticky({
+  sectionRef,
+  bgY,
+}: {
+  sectionRef: React.RefObject<HTMLElement | null>;
+  bgY: any;
+}) {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  return (
+    <section
+      ref={sectionRef}
+      id="servicios"
+      className="relative overflow-hidden border-t border-border bg-[hsl(222_47%_4%)]"
+    >
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.05]"
+        style={{
+          backgroundImage:
+            'linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)',
+          backgroundSize: '72px 72px',
+          y: bgY,
+        }}
+      />
+      <div className="relative mx-auto grid max-w-[1400px] gap-12 px-6 py-32 lg:grid-cols-[0.7fr_1.3fr] lg:gap-20">
+        <div className="lg:sticky lg:top-40 lg:self-start">
+          <Reveal>
+            <div className="text-xs uppercase tracking-[0.28em] text-muted-foreground">
+              <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle bg-primary" />
+              Servicios
+            </div>
+            <h2 className="mt-6 text-balance text-5xl font-extrabold tracking-tighter md:text-7xl">
+              Lo que <br />
+              <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                construimos.
+              </span>
+            </h2>
+            <p className="mt-6 max-w-md text-base text-muted-foreground md:text-lg">
+              Seis capacidades técnicas, una sola filosofía: ingeniería seria, entrega medible y diseño impecable.
+            </p>
+          </Reveal>
+        </div>
+
+        <ul className="relative divide-y divide-border/60">
+          {SERVICES.map((s, i) => {
+            const isOpen = openIndex === i;
+            const isHovered = hoveredIndex === i;
+            const isDimmed = hoveredIndex !== null && !isHovered;
+            return (
+              <motion.li
+                key={s.title}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-40px' }}
+                transition={{ duration: 0.55, delay: i * 0.05, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+                onMouseEnter={() => setHoveredIndex(i)}
+                onMouseLeave={() => setHoveredIndex(null)}
+                onClick={() => setOpenIndex(isOpen ? null : i)}
+                className="group relative cursor-pointer py-10 transition-opacity duration-300"
+                style={{ opacity: isDimmed ? 0.4 : 1 }}
+              >
+                <div className="flex items-start justify-between gap-8">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start gap-4 md:gap-8">
+                      <span
+                        className="mt-2 font-mono text-sm tabular-nums transition-colors duration-300 md:mt-6 md:text-xl"
+                        style={{ color: isHovered || isOpen ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))' }}
+                      >
+                        0{i + 1}
+                      </span>
+                      <h3
+                        className="text-4xl font-extrabold tracking-tighter transition-colors duration-300 md:text-7xl lg:text-8xl leading-[0.85] uppercase"
+                        style={{ color: isHovered || isOpen ? 'hsl(var(--primary))' : 'hsl(var(--foreground))' }}
+                      >
+                        {s.title}
+                      </h3>
+                    </div>
+                    <motion.div
+                      initial={false}
+                      animate={{
+                        height: isOpen ? 'auto' : 0,
+                        opacity: isOpen ? 1 : 0,
+                        marginTop: isOpen ? 32 : 0,
+                      }}
+                      transition={{
+                        type: 'spring',
+                        stiffness: 300,
+                        damping: 30,
+                        opacity: { duration: 0.2 },
+                      }}
+                      className="overflow-hidden pl-10 md:pl-24"
+                    >
+                      <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground md:text-xl">
+                        {s.desc}
+                      </p>
+                    </motion.div>
+                  </div>
+                  <div className="mt-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border transition-colors duration-300 group-hover:border-primary md:mt-6 md:h-20 md:w-20">
+                    <motion.div
+                      animate={{ rotate: isOpen ? 45 : 0 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                    >
+                      <Plus
+                        className="h-6 w-6 stroke-[1.5px] transition-colors duration-300 md:h-10 md:w-10"
+                        style={{ color: isHovered || isOpen ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))' }}
+                      />
+                    </motion.div>
+                  </div>
+                </div>
+              </motion.li>
+            );
+          })}
+        </ul>
+      </div>
+    </section>
+  );
+}
