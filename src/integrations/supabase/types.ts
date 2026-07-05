@@ -150,6 +150,42 @@ export type Database = {
           },
         ]
       }
+      built_projects: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          image_url: string
+          is_active: boolean
+          link_url: string
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          image_url: string
+          is_active?: boolean
+          link_url?: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          is_active?: boolean
+          link_url?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           created_at: string
@@ -489,6 +525,51 @@ export type Database = {
           published_domain?: string | null
           updated_at?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          contact_email: string | null
+          contact_facebook: string | null
+          contact_instagram: string | null
+          contact_linkedin: string | null
+          contact_twitter: string | null
+          contact_whatsapp: string | null
+          created_at: string
+          hero_subtitle: string
+          hero_title: string
+          id: string
+          site_name: string
+          updated_at: string
+        }
+        Insert: {
+          contact_email?: string | null
+          contact_facebook?: string | null
+          contact_instagram?: string | null
+          contact_linkedin?: string | null
+          contact_twitter?: string | null
+          contact_whatsapp?: string | null
+          created_at?: string
+          hero_subtitle?: string
+          hero_title?: string
+          id?: string
+          site_name?: string
+          updated_at?: string
+        }
+        Update: {
+          contact_email?: string | null
+          contact_facebook?: string | null
+          contact_instagram?: string | null
+          contact_linkedin?: string | null
+          contact_twitter?: string | null
+          contact_whatsapp?: string | null
+          created_at?: string
+          hero_subtitle?: string
+          hero_title?: string
+          id?: string
+          site_name?: string
+          updated_at?: string
         }
         Relationships: []
       }
