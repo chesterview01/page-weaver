@@ -32,10 +32,16 @@ const SiteContentSection: React.FC = () => {
       contact_facebook: form.contact_facebook,
       contact_twitter: form.contact_twitter,
       contact_linkedin: form.contact_linkedin,
+      logo_url: form.logo_url,
+      favicon_url: form.favicon_url,
+      primary_color: form.primary_color,
+      accent_color: form.accent_color,
+      background_color: form.background_color,
     });
     setSaving(false);
     toast({ title: error ? 'Error' : 'Guardado', description: error ? String(error) : 'Contenido actualizado.', variant: error ? 'destructive' : undefined });
   };
+
 
   const addProject = async () => {
     const { error } = await (supabase as any).from('built_projects').insert({
@@ -87,6 +93,42 @@ const SiteContentSection: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Marca (Logo, Favicon y Colores)</CardTitle>
+          <CardDescription>
+            Estos valores se aplican globalmente en toda la plataforma. Los colores usan formato HSL sin la palabra "hsl", ej: <code>174 72% 50%</code>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2 md:col-span-2">
+            <Label>URL del Logo</Label>
+            <Input value={form.logo_url || ''} onChange={(e) => setForm({ ...form, logo_url: e.target.value })} placeholder="https://..." />
+            {form.logo_url && <img src={form.logo_url} alt="logo" className="h-12 mt-2" />}
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>URL del Favicon</Label>
+            <Input value={form.favicon_url || ''} onChange={(e) => setForm({ ...form, favicon_url: e.target.value })} placeholder="https://.../favicon.png" />
+          </div>
+          <div className="space-y-2">
+            <Label>Color primario (HSL)</Label>
+            <Input value={form.primary_color || ''} onChange={(e) => setForm({ ...form, primary_color: e.target.value })} placeholder="174 72% 50%" />
+            <div className="h-6 rounded" style={{ background: `hsl(${form.primary_color || '174 72% 50%'})` }} />
+          </div>
+          <div className="space-y-2">
+            <Label>Color de acento (HSL)</Label>
+            <Input value={form.accent_color || ''} onChange={(e) => setForm({ ...form, accent_color: e.target.value })} placeholder="199 89% 48%" />
+            <div className="h-6 rounded" style={{ background: `hsl(${form.accent_color || '199 89% 48%'})` }} />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Color de fondo (HSL)</Label>
+            <Input value={form.background_color || ''} onChange={(e) => setForm({ ...form, background_color: e.target.value })} placeholder="222 47% 6%" />
+            <div className="h-6 rounded border border-border" style={{ background: `hsl(${form.background_color || '222 47% 6%'})` }} />
+          </div>
+        </CardContent>
+      </Card>
+
 
       <Card>
         <CardHeader>

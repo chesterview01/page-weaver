@@ -530,6 +530,8 @@ export type Database = {
       }
       site_settings: {
         Row: {
+          accent_color: string | null
+          background_color: string | null
           contact_email: string | null
           contact_facebook: string | null
           contact_instagram: string | null
@@ -537,13 +539,18 @@ export type Database = {
           contact_twitter: string | null
           contact_whatsapp: string | null
           created_at: string
+          favicon_url: string | null
           hero_subtitle: string
           hero_title: string
           id: string
+          logo_url: string | null
+          primary_color: string | null
           site_name: string
           updated_at: string
         }
         Insert: {
+          accent_color?: string | null
+          background_color?: string | null
           contact_email?: string | null
           contact_facebook?: string | null
           contact_instagram?: string | null
@@ -551,13 +558,18 @@ export type Database = {
           contact_twitter?: string | null
           contact_whatsapp?: string | null
           created_at?: string
+          favicon_url?: string | null
           hero_subtitle?: string
           hero_title?: string
           id?: string
+          logo_url?: string | null
+          primary_color?: string | null
           site_name?: string
           updated_at?: string
         }
         Update: {
+          accent_color?: string | null
+          background_color?: string | null
           contact_email?: string | null
           contact_facebook?: string | null
           contact_instagram?: string | null
@@ -565,9 +577,12 @@ export type Database = {
           contact_twitter?: string | null
           contact_whatsapp?: string | null
           created_at?: string
+          favicon_url?: string | null
           hero_subtitle?: string
           hero_title?: string
           id?: string
+          logo_url?: string | null
+          primary_color?: string | null
           site_name?: string
           updated_at?: string
         }
