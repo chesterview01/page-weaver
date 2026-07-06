@@ -28,10 +28,17 @@ export const HeroParallax = ({
   isAuthenticated: boolean;
   onAuthClick: () => void;
 }) => {
-  const rows = [];
-  for (let i = 0; i < 9; i++) {
-    rows.push(products.slice(i * 5, (i + 1) * 5));
-  }
+  const rows = [
+    products.slice(0, 5),
+    products.slice(5, 10),
+    products.slice(10, 15),
+    products.slice(15, 20),
+    products.slice(20, 25),
+    products.slice(25, 30),
+    products.slice(30, 35),
+    products.slice(35, 40),
+    products.slice(40, 45),
+  ];
   const ref = React.useRef(null);
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -61,13 +68,13 @@ export const HeroParallax = ({
     springConfig
   );
   const translateY = useSpring(
-    useTransform(scrollYProgress, [0, 1], [-700, 3200]),
+    useTransform(scrollYProgress, [0, 1], [-2100, 600]),
     springConfig
   );
   return (
     <div
       ref={ref}
-      className="h-[350vh] py-40 overflow-hidden antialiased relative flex flex-col self-auto [perspective:1000px] [transform-style:preserve-3d]"
+      className="h-[300vh] pt-40 pb-0 overflow-hidden antialiased relative flex flex-col self-auto [perspective:1000px] [transform-style:preserve-3d]"
     >
       <Header
         title={title}
@@ -128,7 +135,7 @@ export const Header = ({
 
   return (
     <div className="max-w-7xl relative mx-auto py-20 md:py-40 px-4 w-full left-0 top-0">
-      <h1 className="text-2xl md:text-7xl font-bold dark:text-white">
+      <h1 className="text-2xl md:text-7xl font-bold dark:text-zinc-300">
         {title || "Chester Code IA"}
       </h1>
       <p className="max-w-2xl text-base md:text-xl mt-8 dark:text-neutral-200">
