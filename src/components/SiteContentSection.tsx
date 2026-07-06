@@ -32,10 +32,16 @@ const SiteContentSection: React.FC = () => {
       contact_facebook: form.contact_facebook,
       contact_twitter: form.contact_twitter,
       contact_linkedin: form.contact_linkedin,
+      logo_url: form.logo_url,
+      favicon_url: form.favicon_url,
+      primary_color: form.primary_color,
+      accent_color: form.accent_color,
+      background_color: form.background_color,
     });
     setSaving(false);
     toast({ title: error ? 'Error' : 'Guardado', description: error ? String(error) : 'Contenido actualizado.', variant: error ? 'destructive' : undefined });
   };
+
 
   const addProject = async () => {
     const { error } = await (supabase as any).from('built_projects').insert({
