@@ -12,7 +12,12 @@ export interface SiteSettings {
   contact_facebook: string;
   contact_twitter: string;
   contact_linkedin: string;
-}
+  logo_url?: string;
+  favicon_url?: string;
+  primary_color?: string;
+  accent_color?: string;
+  background_color?: string;
+
 
 export interface BuiltProject {
   id: string;
