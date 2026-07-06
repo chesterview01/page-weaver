@@ -87,10 +87,13 @@ const App = () => (
     <TooltipProvider>
       <BrowserRouter>
         <AuthProvider>
-          <Toaster />
-          <Sonner />
-          <AppRoutes />
+          <BrandProvider>
+            <Toaster />
+            <Sonner />
+            <AppRoutes />
+          </BrandProvider>
         </AuthProvider>
+
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

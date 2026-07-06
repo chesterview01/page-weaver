@@ -235,7 +235,7 @@ const Settings = () => {
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <Tabs defaultValue="projects" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 bg-card">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-card">
             <TabsTrigger value="projects" className="flex items-center gap-2">
               <FolderOpen className="h-4 w-4" />
               <span className="hidden sm:inline">Proyectos</span>
@@ -243,10 +243,6 @@ const Settings = () => {
             <TabsTrigger value="integrations" className="flex items-center gap-2">
               <Database className="h-4 w-4" />
               <span className="hidden sm:inline">Integraciones</span>
-            </TabsTrigger>
-            <TabsTrigger value="ai" className="flex items-center gap-2">
-              <Bot className="h-4 w-4" />
-              <span className="hidden sm:inline">IA</span>
             </TabsTrigger>
             <TabsTrigger value="domain" className="flex items-center gap-2">
               <Globe className="h-4 w-4" />
@@ -257,6 +253,7 @@ const Settings = () => {
               <span className="hidden sm:inline">Preferencias</span>
             </TabsTrigger>
           </TabsList>
+
 
           {/* Projects Tab - Now with modern grid */}
           <TabsContent value="projects" className="space-y-4">
@@ -292,139 +289,8 @@ const Settings = () => {
             <IntegrationsPanel />
           </TabsContent>
 
-          {/* AI Config Tab - DeepSeek */}
-          <TabsContent value="ai" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-primary" />
-                  Configuración de IA - DeepSeek
-                </CardTitle>
-                <CardDescription>
-                  Conecta tu API Key de DeepSeek para usar sus modelos de IA. Si no configuras nada, se usará Lovable AI por defecto.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Connection Status */}
-                <div className="p-4 rounded-lg border border-border bg-muted/30">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {settings?.use_custom_ai && settings?.custom_api_key ? (
-                        <>
-                          <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
-                          <div>
-                            <p className="font-medium text-foreground">Conectado a DeepSeek</p>
-                            <p className="text-xs text-muted-foreground">Usando API personalizada</p>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="w-3 h-3 rounded-full bg-muted-foreground" />
-                          <div>
-                            <p className="font-medium text-foreground">Sin configurar</p>
-                            <p className="text-xs text-muted-foreground">Usando Lovable AI por defecto</p>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    {settings?.use_custom_ai && settings?.custom_api_key && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          updateSettings({ 
-                            use_custom_ai: false, 
-                            custom_api_key: null, 
-                            custom_api_url: null 
-                          });
-                          setCustomApiKey('');
-                          setCustomApiUrl('');
-                          toast({
-                            title: "DeepSeek desconectado",
-                            description: "Ahora se usa Lovable AI por defecto.",
-                          });
-                        }}
-                      >
-                        <XCircle className="h-4 w-4 mr-2" />
-                        Desconectar
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-4 pt-4 border-t border-border">
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>¿No tienes API Key?</AlertTitle>
-                    <AlertDescription>
-                      Obtén tu API Key en{' '}
-                      <a 
-                        href="https://platform.deepseek.com/api_keys" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline font-medium"
-                      >
-                        platform.deepseek.com
-                      </a>
-                    </AlertDescription>
-                  </Alert>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="api-url">URL de la API</Label>
-                    <Input
-                      id="api-url"
-                      placeholder="https://api.deepseek.com/v1/chat/completions"
-                      value={customApiUrl}
-                      onChange={(e) => setCustomApiUrl(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      URL por defecto de DeepSeek: https://api.deepseek.com/v1/chat/completions
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="api-key">API Key de DeepSeek</Label>
-                    <Input
-                      id="api-key"
-                      type="password"
-                      placeholder="sk-..."
-                      value={customApiKey}
-                      onChange={(e) => setCustomApiKey(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Tu clave se guarda de forma segura y nunca se comparte
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={handleTestConnection}
-                      disabled={!customApiUrl || !customApiKey || isTesting}
-                    >
-                      {isTesting ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Validando...
-                        </>
-                      ) : (
-                        'Probar conexión'
-                      )}
-                    </Button>
-                    <Button 
-                      onClick={handleSaveAIConfig}
-                      disabled={!customApiUrl || !customApiKey}
-                    >
-                      <Save className="h-4 w-4 mr-2" />
-                      Guardar configuración
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           {/* Domain Tab */}
+
           <TabsContent value="domain" className="space-y-4">
             <Card>
               <CardHeader>
