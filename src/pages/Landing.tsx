@@ -1,4 +1,4 @@
-import React, { useRef, useState, Suspense, lazy, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import {
@@ -39,81 +39,60 @@ const SERVICES = [
 ];
 
 const PRODUCTS = [
-  {
-    title: "Modern Dashboard",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80",
-  },
-  {
-    title: "Software Architecture",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80",
-  },
-  {
-    title: "Code Review",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1542831371-29b0f74f9713?w=800&q=80",
-  },
-  {
-    title: "Mobile Development",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&q=80",
-  },
-  {
-    title: "Data Analytics",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1551434678-e076c223a692?w=800&q=80",
-  },
-  {
-    title: "Cloud Infrastructure",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&q=80",
-  },
-  {
-    title: "Web Platforms",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1547658719-da2b51169166?w=800&q=80",
-  },
-  {
-    title: "AI Integration",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&q=80",
-  },
-  {
-    title: "E-commerce Solutions",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1557821552-17105176677c?w=800&q=80",
-  },
-  {
-    title: "Cybersecurity",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&q=80",
-  },
-  {
-    title: "DevOps Pipeline",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1618401471353-b98aadebc25a?w=800&q=80",
-  },
-  {
-    title: "UI/UX Design",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1586717791821-3f44a563eb4c?w=800&q=80",
-  },
-  {
-    title: "System Integration",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&q=80",
-  },
-  {
-    title: "Real-time Databases",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1558494949-ef010cbdcc51?w=800&q=80",
-  },
-  {
-    title: "Custom Software",
-    link: "#contacto",
-    thumbnail: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&q=80",
-  },
+  // Row 1
+  { title: "Enterprise Dashboard", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80" },
+  { title: "Cloud Analytics", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80" },
+  { title: "System Monitoring", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1542831371-29b0f74f9713?w=800&q=80" },
+  { title: "Financial Platform", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1551434678-e076c223a692?w=800&q=80" },
+  { title: "AI Control Panel", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&q=80" },
+  // Row 2
+  { title: "Mobile CRM", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&q=80" },
+  { title: "DevOps Workspace", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1618401471353-b98aadebc25a?w=800&q=80" },
+  { title: "Cybersecurity Hub", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&q=80" },
+  { title: "Inventory Management", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1586717791821-3f44a563eb4c?w=800&q=80" },
+  { title: "Real-time Metrics", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1558494949-ef010cbdcc51?w=800&q=80" },
+  // Row 3
+  { title: "Modern SaaS", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&q=80" },
+  { title: "Digital Banking", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800&q=80" },
+  { title: "Smart Logistics", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1580674285054-bed31e145f59?w=800&q=80" },
+  { title: "API Gateway", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1558494949-ef010cbdcc51?w=800&q=80" },
+  { title: "Data Warehouse", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80" },
+  // Row 4
+  { title: "Supply Chain Pro", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&q=80" },
+  { title: "E-commerce Engine", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1557821552-17105176677c?w=800&q=80" },
+  { title: "HealthTech Portal", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=800&q=80" },
+  { title: "Auto Pilot AI", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=800&q=80" },
+  { title: "Crypto Tracker", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?w=800&q=80" },
+  // Row 5
+  { title: "Smart City Grid", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1573164713714-d95e436ab8d6?w=800&q=80" },
+  { title: "Green Energy Monitor", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=800&q=80" },
+  { title: "Space Tech Lab", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&q=80" },
+  { title: "Neuro Sync", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1559757175-5700dde675bc?w=800&q=80" },
+  { title: "Quantum Computing", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&q=80" },
+  // Row 6
+  { title: "Bio Metrics Plus", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1507413245164-6160d8298b31?w=800&q=80" },
+  { title: "Deep Sea Exploration", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1484417856240-44e40e94531f?w=800&q=80" },
+  { title: "Remote Work Suite", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1587560699334-bea93391dcef?w=800&q=80" },
+  { title: "Event Horizon", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=800&q=80" },
+  { title: "Digital Twins", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800&q=80" },
+  // Row 7
+  { title: "Enterprise Dashboard 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80" },
+  { title: "Cloud Analytics 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80" },
+  { title: "System Monitoring 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1542831371-29b0f74f9713?w=800&q=80" },
+  { title: "Financial Platform 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1551434678-e076c223a692?w=800&q=80" },
+  { title: "AI Control Panel 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&q=80" },
+  // Row 8
+  { title: "Mobile CRM 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&q=80" },
+  { title: "DevOps Workspace 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1618401471353-b98aadebc25a?w=800&q=80" },
+  { title: "Cybersecurity Hub 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&q=80" },
+  { title: "Inventory Management 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1586717791821-3f44a563eb4c?w=800&q=80" },
+  { title: "Real-time Metrics 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1558494949-ef010cbdcc51?w=800&q=80" },
+  // Row 9
+  { title: "Modern SaaS 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&q=80" },
+  { title: "Digital Banking 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800&q=80" },
+  { title: "Smart Logistics 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1580674285054-bed31e145f59?w=800&q=80" },
+  { title: "API Gateway 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1558494949-ef010cbdcc51?w=800&q=80" },
+  { title: "Data Warehouse 2", link: "#contacto", thumbnail: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80" },
 ];
 
 const reveal = {
@@ -173,6 +152,9 @@ export default function Landing() {
     }
   };
 
+  const heroTitle = settings?.hero_title === "Construimos software serio para empresas que escalan." || !settings?.hero_title ? "ESTUDIO DE DESARROLLO DE SOFTWARE PROFESIONAL" : settings.hero_title;
+  const heroSubtitle = settings?.hero_subtitle || "Tu socio en el desarrollo de software a medida. Construimos plataformas rápidas, escalables y con bases de datos en tiempo real.";
+
   return (
     <div className="min-h-screen bg-[hsl(220_40%_5%)] text-foreground">
       {/* NAV */}
@@ -205,6 +187,8 @@ export default function Landing() {
       {/* HERO PARALLAX */}
       <HeroParallax
         products={PRODUCTS}
+        title={heroTitle}
+        subtitle={heroSubtitle}
         isAuthenticated={isAuthenticated}
         onAuthClick={() => setAuthOpen(true)}
       />
