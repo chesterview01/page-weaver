@@ -17,6 +17,9 @@ export interface SiteSettings {
   primary_color?: string;
   accent_color?: string;
   background_color?: string;
+}
+
+
 
 
 export interface BuiltProject {
