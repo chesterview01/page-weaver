@@ -3,8 +3,8 @@
 CREATE TABLE IF NOT EXISTS public.site_settings (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   site_name TEXT NOT NULL DEFAULT 'Chester Code',
-  hero_title TEXT NOT NULL DEFAULT 'Construimos software serio para empresas que escalan.',
-  hero_subtitle TEXT NOT NULL DEFAULT 'Diseñamos, desarrollamos y operamos plataformas web, sistemas internos y aplicaciones móviles con estándares de ingeniería de alta gama.',
+  hero_title TEXT NOT NULL DEFAULT 'ESTUDIO DE DESARROLLO DE SOFTWARE PROFESIONAL',
+  hero_subtitle TEXT NOT NULL DEFAULT 'Tu socio en el desarrollo de software a medida. Construimos plataformas rápidas, escalables y con bases de datos en tiempo real.',
   contact_whatsapp TEXT DEFAULT '',
   contact_email TEXT DEFAULT '',
   contact_instagram TEXT DEFAULT '',
