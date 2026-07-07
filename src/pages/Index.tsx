@@ -137,6 +137,12 @@ const Index = () => {
 
       <AuthModal open={showAuthPrompt} onOpenChange={setShowAuthPrompt} />
       <PricingModal open={showPricingModal} onOpenChange={setShowPricingModal} />
+      <ReviewRequestModal
+        open={showReviewModal}
+        onOpenChange={setShowReviewModal}
+        projectId={currentProjectId}
+        defaultProjectName={currentProject?.name || 'Mi proyecto'}
+      />
     </div>
   );
 };
