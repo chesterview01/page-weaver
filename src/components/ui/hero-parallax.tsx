@@ -9,7 +9,8 @@ import {
 } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "./button";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, MessageCircle, Instagram, Facebook, Twitter, Linkedin, Mail } from "lucide-react";
+import { useSiteSettings } from "@/hooks/useSiteContent";
 
 export const HeroParallax = ({
   products,
