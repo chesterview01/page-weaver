@@ -69,7 +69,7 @@ export function useAdminSubmissions() {
             .select('user_id, display_name')
             .in('user_id', ids);
           const map = new Map((profs || []).map((p: any) => [p.user_id, p.display_name]));
-          rows.forEach((r) => (r.user_email = map.get(r.user_id) || null));
+          rows.forEach((r) => (r.user_email = (map.get(r.user_id) as string | undefined) || null));
         } catch {
           /* silent */
         }
