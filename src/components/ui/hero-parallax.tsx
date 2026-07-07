@@ -125,14 +125,31 @@ export const Header = ({
   onAuthClick: () => void;
 }) => {
   const navigate = useNavigate();
+  const { settings } = useSiteSettings();
 
-  const handleAction = () => {
+  const handleStart = () => {
     if (isAuthenticated) {
       navigate("/app");
     } else {
-      onAuthClick();
+      navigate("/login");
     }
   };
+
+  const socials = (() => {
+    if (!settings) return [] as { href: string; label: string; icon: React.ReactNode }[];
+    const list: { href: string; label: string; icon: React.ReactNode }[] = [];
+    if (settings.contact_whatsapp) {
+      const raw = settings.contact_whatsapp;
+      const href = raw.startsWith("http") ? raw : `https://wa.me/${raw.replace(/[^0-9]/g, "")}`;
+      list.push({ href, label: "WhatsApp", icon: <MessageCircle className="h-4 w-4" /> });
+    }
+    if (settings.contact_email) list.push({ href: `mailto:${settings.contact_email}`, label: "Email", icon: <Mail className="h-4 w-4" /> });
+    if (settings.contact_instagram) list.push({ href: settings.contact_instagram, label: "Instagram", icon: <Instagram className="h-4 w-4" /> });
+    if (settings.contact_facebook) list.push({ href: settings.contact_facebook, label: "Facebook", icon: <Facebook className="h-4 w-4" /> });
+    if (settings.contact_twitter) list.push({ href: settings.contact_twitter, label: "Twitter", icon: <Twitter className="h-4 w-4" /> });
+    if (settings.contact_linkedin) list.push({ href: settings.contact_linkedin, label: "LinkedIn", icon: <Linkedin className="h-4 w-4" /> });
+    return list;
+  })();
 
   return (
     <div className="max-w-7xl relative mx-auto py-20 md:py-40 px-4 w-full left-0 top-0">
@@ -142,15 +159,41 @@ export const Header = ({
       <p className="max-w-2xl text-base md:text-xl mt-8 dark:text-neutral-200">
         {subtitle || "Tu socio en el desarrollo de software a medida. Construimos plataformas rápidas, escalables y con bases de datos en tiempo real."}
       </p>
-      <div className="mt-10">
+      <div className="mt-10 flex flex-wrap items-center gap-3">
         <Button
           size="lg"
           className="bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 group h-12 px-6 shadow-lg shadow-primary/20"
-          onClick={handleAction}
+          onClick={handleStart}
         >
           Iniciar Proyecto
           <ArrowUpRight className="ml-2 h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
         </Button>
+
+        {socials.length > 0 ? (
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl px-3 py-2 shadow-lg shadow-black/20">
+            <span className="text-xs text-muted-foreground mr-1 hidden sm:inline">Contacto</span>
+            {socials.map((s) => (
+              <a
+                key={s.label}
+                href={s.href}
+                target={s.href.startsWith("http") ? "_blank" : undefined}
+                rel="noopener noreferrer"
+                aria-label={s.label}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-all hover:text-foreground hover:bg-white/5 hover:scale-110"
+              >
+                {s.icon}
+              </a>
+            ))}
+          </div>
+        ) : (
+          <a
+            href="#contacto"
+            className="inline-flex items-center gap-2 h-12 px-5 rounded-md border border-white/10 bg-white/[0.03] backdrop-blur-xl text-sm text-foreground/90 hover:bg-white/[0.06] transition-colors"
+          >
+            <MessageCircle className="h-4 w-4" />
+            Contacto
+          </a>
+        )}
       </div>
     </div>
   );
