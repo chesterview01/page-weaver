@@ -13,6 +13,7 @@ import Pricing from "./pages/Pricing";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 import AuthCallback from "./pages/AuthCallback";
+import Login from "./pages/Login";
 
 const queryClient = new QueryClient();
 
