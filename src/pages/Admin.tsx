@@ -444,6 +444,11 @@ const Admin: React.FC = () => {
           <TabsContent value="landing">
             <SiteContentSection />
           </TabsContent>
+
+          {/* Revisions tab */}
+          <TabsContent value="revisions">
+            <AdminSubmissions />
+          </TabsContent>
         </Tabs>
       </main>
     </div>
