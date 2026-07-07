@@ -14,7 +14,8 @@ import { toast } from '@/hooks/use-toast';
 import DeploymentConfigSection from '@/components/DeploymentConfigSection';
 import AIProviderConfigSection from '@/components/AIProviderConfigSection';
 import SiteContentSection from '@/components/SiteContentSection';
-import { Sparkles, LayoutTemplate } from 'lucide-react';
+import AdminSubmissions from '@/components/admin/AdminSubmissions';
+import { Sparkles, LayoutTemplate, ClipboardList } from 'lucide-react';
 
 interface PaymentRequest {
   id: string;
