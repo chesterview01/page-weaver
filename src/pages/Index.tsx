@@ -7,12 +7,13 @@ import SaveProjectDialog from '@/components/SaveProjectDialog';
 import AuthModal from '@/components/AuthModal';
 import PricingModal from '@/components/PricingModal';
 import { SupabaseManualConnector } from '@/components/SupabaseManualConnector';
+import ReviewRequestModal from '@/components/dashboard/ReviewRequestModal';
 import { useChat } from '@/hooks/useChat';
 import { useSettings } from '@/hooks/useSettings';
 import { usePreviewWindow } from '@/hooks/usePreviewWindow';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { LogIn } from 'lucide-react';
+import { LogIn, ShieldCheck } from 'lucide-react';
 
 const Index = () => {
   const {
