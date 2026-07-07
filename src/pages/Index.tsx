@@ -7,12 +7,13 @@ import SaveProjectDialog from '@/components/SaveProjectDialog';
 import AuthModal from '@/components/AuthModal';
 import PricingModal from '@/components/PricingModal';
 import { SupabaseManualConnector } from '@/components/SupabaseManualConnector';
+import ReviewRequestModal from '@/components/dashboard/ReviewRequestModal';
 import { useChat } from '@/hooks/useChat';
 import { useSettings } from '@/hooks/useSettings';
 import { usePreviewWindow } from '@/hooks/usePreviewWindow';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { LogIn } from 'lucide-react';
+import { LogIn, ShieldCheck } from 'lucide-react';
 
 const Index = () => {
   const {
@@ -36,6 +37,7 @@ const Index = () => {
   const { isAuthenticated, wallet } = useAuthContext();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   // Auto-open preview in new tab when code changes (if setting enabled)
   useEffect(() => {
@@ -97,6 +99,16 @@ const Index = () => {
             <span className="text-sm text-muted-foreground px-2">Vista previa</span>
             <div className="flex items-center gap-2">
               <SupabaseManualConnector compact />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowReviewModal(true)}
+                disabled={!isAuthenticated}
+                className="h-8 border-white/10 bg-white/[0.03] backdrop-blur-md hover:bg-white/[0.08]"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 mr-1.5 text-primary" />
+                Solicitar Revisión
+              </Button>
               <SaveProjectDialog 
                 onSave={saveToProject}
                 disabled={!lastBuildId}
@@ -125,6 +137,12 @@ const Index = () => {
 
       <AuthModal open={showAuthPrompt} onOpenChange={setShowAuthPrompt} />
       <PricingModal open={showPricingModal} onOpenChange={setShowPricingModal} />
+      <ReviewRequestModal
+        open={showReviewModal}
+        onOpenChange={setShowReviewModal}
+        projectId={currentProjectId}
+        defaultProjectName={currentProject?.projectName || 'Mi proyecto'}
+      />
     </div>
   );
 };
