@@ -37,6 +37,7 @@ const Index = () => {
   const { isAuthenticated, wallet } = useAuthContext();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   // Auto-open preview in new tab when code changes (if setting enabled)
   useEffect(() => {
