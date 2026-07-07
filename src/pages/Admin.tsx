@@ -281,8 +281,12 @@ const Admin: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      {/* ambient glow */}
+      <div className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 h-[420px] w-[900px] rounded-full bg-primary/10 blur-[120px]" />
+      <div className="pointer-events-none absolute top-1/3 right-0 h-[380px] w-[380px] rounded-full bg-accent/10 blur-[120px]" />
+
+      <header className="border-b border-white/10 bg-white/[0.02] backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/app')}>
             <ArrowLeft className="h-5 w-5" />
@@ -291,28 +295,32 @@ const Admin: React.FC = () => {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <main className="relative container mx-auto px-4 py-8 max-w-6xl">
         <Tabs defaultValue="payments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 bg-card">
-            <TabsTrigger value="payments" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 gap-1 h-auto p-1.5 rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl">
+            <TabsTrigger value="payments" className="flex items-center gap-2 data-[state=active]:bg-white/[0.06] data-[state=active]:shadow-inner">
               <CreditCard className="h-4 w-4" />
               Solicitudes
             </TabsTrigger>
-            <TabsTrigger value="methods" className="flex items-center gap-2">
+            <TabsTrigger value="methods" className="flex items-center gap-2 data-[state=active]:bg-white/[0.06]">
               <DollarSign className="h-4 w-4" />
               Métodos
             </TabsTrigger>
-            <TabsTrigger value="deployment" className="flex items-center gap-2">
+            <TabsTrigger value="deployment" className="flex items-center gap-2 data-[state=active]:bg-white/[0.06]">
               <Server className="h-4 w-4" />
               Despliegue
             </TabsTrigger>
-            <TabsTrigger value="ai" className="flex items-center gap-2">
+            <TabsTrigger value="ai" className="flex items-center gap-2 data-[state=active]:bg-white/[0.06]">
               <Sparkles className="h-4 w-4" />
               IA Dual
             </TabsTrigger>
-            <TabsTrigger value="landing" className="flex items-center gap-2">
+            <TabsTrigger value="landing" className="flex items-center gap-2 data-[state=active]:bg-white/[0.06]">
               <LayoutTemplate className="h-4 w-4" />
               Landing
+            </TabsTrigger>
+            <TabsTrigger value="revisions" className="flex items-center gap-2 data-[state=active]:bg-white/[0.06]">
+              <ClipboardList className="h-4 w-4" />
+              Revisiones
             </TabsTrigger>
           </TabsList>
 
