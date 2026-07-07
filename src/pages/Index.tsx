@@ -141,7 +141,7 @@ const Index = () => {
         open={showReviewModal}
         onOpenChange={setShowReviewModal}
         projectId={currentProjectId}
-        defaultProjectName={currentProject?.name || 'Mi proyecto'}
+        defaultProjectName={currentProject?.projectName || 'Mi proyecto'}
       />
     </div>
   );
