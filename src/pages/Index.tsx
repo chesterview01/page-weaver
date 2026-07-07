@@ -99,6 +99,16 @@ const Index = () => {
             <span className="text-sm text-muted-foreground px-2">Vista previa</span>
             <div className="flex items-center gap-2">
               <SupabaseManualConnector compact />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowReviewModal(true)}
+                disabled={!isAuthenticated}
+                className="h-8 border-white/10 bg-white/[0.03] backdrop-blur-md hover:bg-white/[0.08]"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 mr-1.5 text-primary" />
+                Solicitar Revisión
+              </Button>
               <SaveProjectDialog 
                 onSave={saveToProject}
                 disabled={!lastBuildId}
