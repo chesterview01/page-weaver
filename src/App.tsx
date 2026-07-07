@@ -63,6 +63,11 @@ const AppRoutes = () => (
       </PublicRoute>
     } />
     <Route path="/auth/callback" element={<AuthCallback />} />
+    <Route path="/login" element={
+      <PublicRoute>
+        <Login />
+      </PublicRoute>
+    } />
     <Route path="/app" element={
       <ProtectedRoute>
         <Index />
