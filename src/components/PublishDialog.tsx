@@ -37,11 +37,20 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
 
   const loadDeploymentConfig = async () => {
     try {
+      // First try to use the secure RPC to avoid exposing sensitive tokens in the table query
+      const { data: rpcDomain, error: rpcError } = await supabase.rpc('get_main_deployment_domain');
+
+      if (!rpcError && rpcDomain) {
+        setMainDomain(rpcDomain);
+        return;
+      }
+
+      // Fallback to direct query if RPC is not yet implemented in the database
       const { data } = await supabase
         .from('deployment_config')
         .select('main_domain')
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
       if (data?.main_domain) {
         setMainDomain(data.main_domain);
@@ -176,11 +185,12 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
       });
 
       onPublished?.();
-    } catch (error: any) {
-      console.error('Error publishing:', error);
+    } catch (error) {
+      const err = error as Error;
+      console.error('Error publishing:', err);
       toast({
         title: "Error al publicar",
-        description: error.message || "No se pudo publicar el proyecto.",
+        description: err.message || "No se pudo publicar el proyecto.",
         variant: "destructive",
       });
     } finally {
