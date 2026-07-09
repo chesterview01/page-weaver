@@ -57,12 +57,19 @@ export function useSiteSettings() {
   }, [load]);
 
   const update = async (patch: Partial<SiteSettings>) => {
-    if (!settings) return { error: 'no settings' };
-    const { error } = await (supabase as any)
+    const dataToUpsert = settings?.id
+      ? { ...patch, id: settings.id }
+      : patch;
+
+    const { data, error } = await (supabase as any)
       .from('site_settings')
-      .update(patch)
-      .eq('id', settings.id);
-    if (!error) setSettings({ ...settings, ...patch });
+      .upsert(dataToUpsert)
+      .select()
+      .single();
+
+    if (!error && data) {
+      setSettings(data as SiteSettings);
+    }
     return { error };
   };
 
