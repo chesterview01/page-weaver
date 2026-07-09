@@ -15,12 +15,14 @@ import DeploymentConfigSection from '@/components/DeploymentConfigSection';
 import AIProviderConfigSection from '@/components/AIProviderConfigSection';
 import SiteContentSection from '@/components/SiteContentSection';
 import AdminSubmissions from '@/components/admin/AdminSubmissions';
-import { Sparkles, LayoutTemplate, ClipboardList } from 'lucide-react';
+import SubscriptionPlanEditor from '@/components/admin/SubscriptionPlanEditor';
+import { Sparkles, LayoutTemplate, ClipboardList, Package } from 'lucide-react';
 
 interface PaymentRequest {
   id: string;
   user_id: string;
-  plan_id: string;
+  plan_id: string | null;
+  credits: number | null;
   payment_method: string;
   payment_reference: string | null;
   amount_cents: number;
@@ -94,7 +96,7 @@ const Admin: React.FC = () => {
 
         setPaymentRequests(requests.map(r => ({
           ...r,
-          plan_name: planMap.get(r.plan_id) || 'Unknown',
+          plan_name: r.plan_id ? (planMap.get(r.plan_id) || 'Unknown') : `${r.credits} Créditos`,
         })) as PaymentRequest[]);
       }
 
@@ -125,63 +127,110 @@ const Admin: React.FC = () => {
 
       if (updateError) throw updateError;
 
-      // Get plan details
-      const { data: plan } = await supabase
-        .from('subscription_plans')
-        .select('*')
-        .eq('id', request.plan_id)
-        .single();
+      if (request.plan_id) {
+        // Handle Subscription Plan approval
+        const { data: plan } = await supabase
+          .from('subscription_plans')
+          .select('*')
+          .eq('id', request.plan_id)
+          .single();
 
-      if (plan) {
-        // Create or update user subscription
-        const { data: existingSub } = await supabase
-          .from('user_subscriptions')
-          .select('id')
-          .eq('user_id', request.user_id)
-          .eq('is_active', true)
-          .maybeSingle();
+        if (plan) {
+          // Create or update user subscription
+          const { data: existingSub } = await supabase
+            .from('user_subscriptions')
+            .select('id')
+            .eq('user_id', request.user_id)
+            .eq('is_active', true)
+            .maybeSingle();
 
-        if (existingSub) {
+          if (existingSub) {
+            await supabase
+              .from('user_subscriptions')
+              .update({
+                plan_id: request.plan_id,
+                is_active: true,
+                started_at: new Date().toISOString(),
+                expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              })
+              .eq('id', existingSub.id);
+          } else {
+            await supabase
+              .from('user_subscriptions')
+              .insert({
+                user_id: request.user_id,
+                plan_id: request.plan_id,
+                is_active: true,
+                expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              });
+          }
+
+          // Get current wallet to add credits
+          const { data: wallet } = await supabase
+            .from('wallets')
+            .select('credits')
+            .eq('user_id', request.user_id)
+            .single();
+
+          const currentCredits = wallet?.credits || 0;
+
+          // Add credits to wallet
           await supabase
-            .from('user_subscriptions')
-            .update({
-              plan_id: request.plan_id,
-              is_active: true,
-              started_at: new Date().toISOString(),
-              expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-            })
-            .eq('id', existingSub.id);
-        } else {
+            .from('wallets')
+            .update({ credits: currentCredits + plan.credits_per_month })
+            .eq('user_id', request.user_id);
+
+          // Log the credit addition
           await supabase
-            .from('user_subscriptions')
+            .from('credit_logs')
             .insert({
               user_id: request.user_id,
-              plan_id: request.plan_id,
-              is_active: true,
-              expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              amount: plan.credits_per_month,
+              action: 'plan_purchase',
+              description: `Plan ${plan.name} activado`,
             });
         }
+      } else if (request.credits) {
+        // Handle direct credits purchase
+        const { data: wallet } = await supabase
+          .from('wallets')
+          .select('credits')
+          .eq('user_id', request.user_id)
+          .single();
 
-        // Add credits to wallet
+        const currentCredits = wallet?.credits || 0;
+
         await supabase
           .from('wallets')
-          .update({ credits: plan.credits_per_month })
+          .update({ credits: currentCredits + request.credits })
           .eq('user_id', request.user_id);
 
-        // Log the credit addition
         await supabase
           .from('credit_logs')
           .insert({
             user_id: request.user_id,
-            amount: plan.credits_per_month,
-            action: 'plan_purchase',
-            description: `Plan ${plan.name} activado`,
+            amount: request.credits,
+            action: 'credit_purchase',
+            description: `Compra de ${request.credits} créditos aprobada`,
           });
       }
 
+      // Add to audit logs
+      await supabase.from('audit_logs').insert({
+        action: 'approve_payment',
+        entity_type: 'plan_payment_request',
+        entity_id: request.id,
+        details: {
+          user_id: request.user_id,
+          plan_id: request.plan_id,
+          credits: request.credits,
+          amount_cents: request.amount_cents
+        }
+      });
+
       toast({
         title: "Pago aprobado",
-        description: "El plan ha sido activado para el usuario.",
+        description: "La solicitud ha sido procesada correctamente.",
       });
       loadData();
     } catch (error) {
@@ -297,10 +346,14 @@ const Admin: React.FC = () => {
 
       <main className="relative container mx-auto px-4 py-8 max-w-6xl">
         <Tabs defaultValue="payments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 gap-1 h-auto p-1.5 rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl">
+          <TabsList className="grid w-full grid-cols-3 md:grid-cols-7 gap-1 h-auto p-1.5 rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl">
             <TabsTrigger value="payments" className="flex items-center gap-2 data-[state=active]:bg-white/[0.06] data-[state=active]:shadow-inner">
               <CreditCard className="h-4 w-4" />
               Solicitudes
+            </TabsTrigger>
+            <TabsTrigger value="plans" className="flex items-center gap-2 data-[state=active]:bg-white/[0.06]">
+              <Package className="h-4 w-4" />
+              Planes
             </TabsTrigger>
             <TabsTrigger value="methods" className="flex items-center gap-2 data-[state=active]:bg-white/[0.06]">
               <DollarSign className="h-4 w-4" />
@@ -403,6 +456,11 @@ const Admin: React.FC = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Plans management tab */}
+          <TabsContent value="plans">
+            <SubscriptionPlanEditor />
           </TabsContent>
 
           {/* Payment Methods Tab */}
