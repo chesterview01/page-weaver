@@ -9,6 +9,23 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSiteSettings, useBuiltProjects, type BuiltProject } from '@/hooks/useSiteContent';
 
+const DEFAULT_SETTINGS = {
+  site_name: 'SofwarX',
+  hero_title: 'Construimos software serio para empresas que escalan.',
+  hero_subtitle: 'Diseñamos, desarrollamos y operamos plataformas web, sistemas internos y aplicaciones móviles con estándares de ingeniería de alta gama.',
+  contact_whatsapp: '+584243615100',
+  contact_email: 'technominer.c.a@gmail.com',
+  contact_instagram: '',
+  contact_facebook: '',
+  contact_twitter: '',
+  contact_linkedin: '',
+  logo_url: '',
+  favicon_url: '',
+  primary_color: '174 72% 50%',
+  accent_color: '199 89% 48%',
+  background_color: '222 47% 6%',
+};
+
 const SiteContentSection: React.FC = () => {
   const { settings, loading, update } = useSiteSettings();
   const { projects, reload } = useBuiltProjects();
@@ -16,8 +33,12 @@ const SiteContentSection: React.FC = () => {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (settings) setForm(settings);
-  }, [settings]);
+    if (settings) {
+      setForm(settings);
+    } else if (!loading) {
+      setForm(DEFAULT_SETTINGS);
+    }
+  }, [settings, loading]);
 
   const saveSettings = async () => {
     if (!form) return;
@@ -39,7 +60,11 @@ const SiteContentSection: React.FC = () => {
       background_color: form.background_color,
     });
     setSaving(false);
-    toast({ title: error ? 'Error' : 'Guardado', description: error ? String(error) : 'Contenido actualizado.', variant: error ? 'destructive' : undefined });
+    toast({
+      title: error ? 'Error' : 'Guardado',
+      description: error ? (typeof error === 'object' ? (error as any).message : String(error)) : 'Contenido actualizado.',
+      variant: error ? 'destructive' : undefined
+    });
   };
 
 
@@ -67,9 +92,11 @@ const SiteContentSection: React.FC = () => {
     else reload();
   };
 
-  if (loading || !form) {
+  if (loading && !form) {
     return <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
+
+  if (!form) return null;
 
   return (
     <div className="space-y-6">
