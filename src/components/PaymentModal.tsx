@@ -27,10 +27,18 @@ interface Plan {
 interface PaymentModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  plan: Plan | null;
+  plan?: Plan | null;
+  credits?: number | null;
+  price_cents?: number | null;
 }
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ open, onOpenChange, plan }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({
+  open,
+  onOpenChange,
+  plan,
+  credits,
+  price_cents
+}) => {
   const { user } = useAuthContext();
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<string>('binance');
@@ -62,10 +70,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onOpenChange, plan })
   };
 
   const handleSubmitPayment = async () => {
-    if (!user || !plan || !paymentReference.trim()) {
+    const finalPriceCents = plan?.price_cents || price_cents;
+
+    if (!user || (!plan && !credits) || !paymentReference.trim() || !finalPriceCents) {
       toast({
         title: "Error",
-        description: "Por favor ingresa la referencia del pago.",
+        description: "Por favor completa todos los campos requeridos.",
         variant: "destructive",
       });
       return;
@@ -77,10 +87,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onOpenChange, plan })
         .from('plan_payment_requests')
         .insert({
           user_id: user.id,
-          plan_id: plan.id,
+          plan_id: plan?.id || null,
+          credits: credits || null,
           payment_method: selectedMethod,
           payment_reference: paymentReference.trim(),
-          amount_cents: plan.price_cents,
+          amount_cents: finalPriceCents,
           status: 'pending',
         });
 
@@ -113,13 +124,16 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onOpenChange, plan })
 
   const currentMethod = paymentMethods.find(m => m.type === selectedMethod);
 
+  const displayTitle = plan ? `Pagar plan ${plan.name}` : `Comprar ${credits} Créditos`;
+  const displayPrice = plan ? formatPrice(plan.price_cents) : (price_cents ? formatPrice(price_cents) : '');
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Pagar plan {plan?.name}</DialogTitle>
+          <DialogTitle>{displayTitle}</DialogTitle>
           <DialogDescription>
-            Total a pagar: <span className="font-bold text-primary">{plan ? formatPrice(plan.price_cents) : ''}</span>
+            Total a pagar: <span className="font-bold text-primary">{displayPrice}</span>
           </DialogDescription>
         </DialogHeader>
 

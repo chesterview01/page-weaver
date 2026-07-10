@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FolderOpen, Bot, Settings2, Trash2, ExternalLink, Save, Globe, AlertCircle, CheckCircle2, Code, FileCode, ChevronDown, ChevronUp, Database, Pencil, Eye, EyeOff, Loader2, Zap, XCircle } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, FolderOpen, Bot, Settings2, Trash2, ExternalLink, Save, Globe, AlertCircle, CheckCircle2, Code, FileCode, ChevronDown, ChevronUp, Database, Pencil, Eye, EyeOff, Loader2, Zap, XCircle, Wallet, CreditCard, Coins, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import PaymentModal from '@/components/PaymentModal';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -164,8 +166,18 @@ const ProjectCard: React.FC<{
 
 const Settings = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const defaultTab = searchParams.get('tab') || 'projects';
+
+  const { user, wallet, refreshWallet } = useAuthContext();
   const { settings, isLoading: settingsLoading, updateSettings, testCustomAI } = useSettings();
   const { projects, isLoading: projectsLoading, deleteProject, getProjectBuilds } = useProjects();
+
+  // Credit purchase state
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedCredits, setSelectedCredits] = useState<number | null>(null);
+  const [customCredits, setCustomCredits] = useState<string>('');
+  const [purchasePrice, setPurchasePrice] = useState<number>(0);
 
   const [customApiUrl, setCustomApiUrl] = useState(settings?.custom_api_url || '');
   const [customApiKey, setCustomApiKey] = useState(settings?.custom_api_key || '');
@@ -213,6 +225,26 @@ const Settings = () => {
     }, 1000);
   };
 
+  const handlePurchaseCredits = (amount: number) => {
+    setSelectedCredits(amount);
+    const priceCents = Math.round((amount / 10) * 5.99 * 100);
+    setPurchasePrice(priceCents);
+    setPaymentModalOpen(true);
+  };
+
+  const handleCustomPurchase = () => {
+    const amount = parseInt(customCredits);
+    if (isNaN(amount) || amount < 5) {
+      toast({
+        title: "Monto inválido",
+        description: "El monto mínimo es de 5 créditos.",
+        variant: "destructive",
+      });
+      return;
+    }
+    handlePurchaseCredits(amount);
+  };
+
   if (settingsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -234,11 +266,15 @@ const Settings = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
-        <Tabs defaultValue="projects" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-card">
+        <Tabs defaultValue={defaultTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 bg-card">
             <TabsTrigger value="projects" className="flex items-center gap-2">
               <FolderOpen className="h-4 w-4" />
               <span className="hidden sm:inline">Proyectos</span>
+            </TabsTrigger>
+            <TabsTrigger value="wallet" className="flex items-center gap-2">
+              <Wallet className="h-4 w-4" />
+              <span className="hidden sm:inline">Cartera</span>
             </TabsTrigger>
             <TabsTrigger value="integrations" className="flex items-center gap-2">
               <Database className="h-4 w-4" />
@@ -250,10 +286,92 @@ const Settings = () => {
             </TabsTrigger>
             <TabsTrigger value="preferences" className="flex items-center gap-2">
               <Settings2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Preferencias</span>
+              <span className="hidden sm:inline">Ajustes</span>
             </TabsTrigger>
           </TabsList>
 
+
+          {/* Wallet / Credits Tab */}
+          <TabsContent value="wallet" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="md:col-span-1 bg-primary/5 border-primary/20">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Coins className="h-5 w-5 text-primary" />
+                    Tu Saldo
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center justify-center py-6">
+                  <span className="text-5xl font-bold text-primary">{wallet?.credits || 0}</span>
+                  <span className="text-sm text-muted-foreground mt-2 font-medium uppercase tracking-wider">Créditos Disponibles</span>
+                </CardContent>
+              </Card>
+
+              <div className="md:col-span-2 space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {[10, 20, 30].map((amount) => (
+                    <Card key={amount} className="hover:border-primary/50 transition-colors cursor-pointer" onClick={() => handlePurchaseCredits(amount)}>
+                      <CardHeader className="p-4 text-center">
+                        <CardTitle className="text-2xl">{amount} <span className="text-xs font-normal text-muted-foreground">monedas</span></CardTitle>
+                        <CardDescription className="text-primary font-bold">
+                          ${((amount / 10) * 5.99).toFixed(2)}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardFooter className="p-4 pt-0">
+                        <Button variant="outline" className="w-full text-xs h-8">Comprar</Button>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <PlusCircle className="h-4 w-4" />
+                      Compra Personalizada
+                    </CardTitle>
+                    <CardDescription>Mínimo 5 créditos. Cada 10 créditos cuestan $5.99</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <Label htmlFor="custom-credits" className="sr-only">Créditos</Label>
+                        <Input
+                          id="custom-credits"
+                          type="number"
+                          placeholder="Cantidad de créditos (ej. 50)"
+                          value={customCredits}
+                          onChange={(e) => setCustomCredits(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex-none flex items-center px-4 bg-muted rounded-md font-bold text-primary">
+                        ${customCredits && parseInt(customCredits) >= 5
+                          ? ((parseInt(customCredits) / 10) * 5.99).toFixed(2)
+                          : '0.00'}
+                      </div>
+                      <Button onClick={handleCustomPurchase} disabled={!customCredits || parseInt(customCredits) < 5}>
+                        Comprar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  Información de Pagos
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground space-y-2">
+                <p>• Los créditos se activan una vez que el administrador valida tu comprobante de pago.</p>
+                <p>• Puedes usar tus créditos para generar nuevos builds y usar la IA dual.</p>
+                <p>• Todas las compras son finales y no reembolsables una vez aprobadas.</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Projects Tab - Now with modern grid */}
           <TabsContent value="projects" className="space-y-4">
@@ -461,6 +579,13 @@ const Settings = () => {
           </TabsContent>
         </Tabs>
       </main>
+
+      <PaymentModal
+        open={paymentModalOpen}
+        onOpenChange={setPaymentModalOpen}
+        credits={selectedCredits}
+        price_cents={purchasePrice}
+      />
     </div>
   );
 };

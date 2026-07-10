@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Zap, Crown, Rocket, ArrowLeft } from 'lucide-react';
+import { Check, Zap, Crown, Rocket, ArrowLeft, Coins } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -135,6 +135,28 @@ const Pricing: React.FC = () => {
             })}
           </div>
         )}
+
+        <div className="mt-16 text-center max-w-2xl mx-auto">
+          <Card className="bg-primary/5 border-primary/20 p-8">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                <Coins className="w-6 h-6 text-primary" />
+              </div>
+              <h2 className="text-2xl font-semibold">¿Solo necesitas más créditos?</h2>
+              <p className="text-muted-foreground">
+                No necesitas suscribirte a un plan mensual si solo quieres recargar tu saldo de monedas.
+                Compra paquetes de créditos flexibles desde tu cartera.
+              </p>
+              <Button
+                variant="outline"
+                className="mt-2 border-primary/30 hover:bg-primary/10"
+                onClick={() => navigate('/settings?tab=wallet')}
+              >
+                Ir a mi cartera
+              </Button>
+            </div>
+          </Card>
+        </div>
 
         <div className="mt-16 text-center">
           <h2 className="text-2xl font-semibold mb-4">¿Tienes preguntas?</h2>
