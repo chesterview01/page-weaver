@@ -7,8 +7,6 @@ import { useAuthContext } from '@/contexts/AuthContext';
 import { useLocalPersistence } from '@/hooks/useLocalPersistence';
 import { generateThumbnail } from '@/utils/thumbnailGenerator';
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
-
 // Parse JSON project structure from AI response
 const parseProjectFromResponse = (content: string): ProjectOutput | null => {
   try {
@@ -85,102 +83,54 @@ const extractNarrative = (content: string): string => {
   return narrative || content;
 };
 
-// Stream chat from edge function
+// Stream chat from database RPC
 async function streamChat({
+  conversationId,
+  userMessage,
   messages,
   settings,
   onDelta,
   onDone,
   onError,
 }: {
+  conversationId: string;
+  userMessage: string;
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
   settings: { narrativeStyle: string; customApiUrl?: string; customApiKey?: string; useCustomAI?: boolean } | null;
   onDelta: (deltaText: string) => void;
-  onDone: () => void;
+  onDone: (insertedMessageId?: string) => void;
   onError: (error: Error) => void;
 }) {
   try {
-    const resp = await fetch(CHAT_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
-      body: JSON.stringify({
-        messages,
-        narrativeStyle: settings?.narrativeStyle || 'detailed',
-        customApiUrl: settings?.customApiUrl,
-        customApiKey: settings?.customApiKey,
-        useCustomAI: settings?.useCustomAI,
-      }),
+    const { data, error } = await supabase.rpc('handle_constructor_chat', {
+      p_conversation_id: conversationId,
+      p_messages: messages,
+      p_user_message: userMessage,
+      p_narrative_style: settings?.narrativeStyle || 'detailed',
+      p_custom_api_url: settings?.customApiUrl || null,
+      p_custom_api_key: settings?.customApiKey || null,
+      p_use_custom_ai: settings?.useCustomAI || false
     });
 
-    if (resp.status === 429) {
-      throw new Error("Límite de peticiones excedido. Por favor, espera un momento.");
-    }
-    if (resp.status === 402) {
-      throw new Error("Límite de uso alcanzado. Por favor, añade créditos.");
-    }
-    if (!resp.ok || !resp.body) {
-      throw new Error("Error al conectar con el servicio de IA");
+    if (error) {
+      throw error;
     }
 
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let textBuffer = "";
-    let streamDone = false;
-
-    while (!streamDone) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      textBuffer += decoder.decode(value, { stream: true });
-
-      let newlineIndex: number;
-      while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-        let line = textBuffer.slice(0, newlineIndex);
-        textBuffer = textBuffer.slice(newlineIndex + 1);
-
-        if (line.endsWith("\r")) line = line.slice(0, -1);
-        if (line.startsWith(":") || line.trim() === "") continue;
-        if (!line.startsWith("data: ")) continue;
-
-        const jsonStr = line.slice(6).trim();
-        if (jsonStr === "[DONE]") {
-          streamDone = true;
-          break;
-        }
-
-        try {
-          const parsed = JSON.parse(jsonStr);
-          const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-          if (content) onDelta(content);
-        } catch {
-          textBuffer = line + "\n" + textBuffer;
-          break;
-        }
-      }
+    if (!data) {
+      throw new Error("No se recibió respuesta del asistente de IA.");
     }
 
-    // Final flush
-    if (textBuffer.trim()) {
-      for (let raw of textBuffer.split("\n")) {
-        if (!raw) continue;
-        if (raw.endsWith("\r")) raw = raw.slice(0, -1);
-        if (raw.startsWith(":") || raw.trim() === "") continue;
-        if (!raw.startsWith("data: ")) continue;
-        const jsonStr = raw.slice(6).trim();
-        if (jsonStr === "[DONE]") continue;
-        try {
-          const parsed = JSON.parse(jsonStr);
-          const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-          if (content) onDelta(content);
-        } catch { /* ignore */ }
-      }
-    }
+    const responseJson = typeof data === 'string'
+      ? JSON.parse(data)
+      : (data as { content?: string; message_id?: string });
+    const content = responseJson?.content || '';
+    const messageId = responseJson?.message_id || null;
 
-    onDone();
+    onDelta(content);
+    onDone(messageId);
   } catch (error) {
-    onError(error instanceof Error ? error : new Error("Error desconocido"));
+    const errMsg = error instanceof Error ? error.message : String(error);
+    onError(new Error(errMsg));
   }
 }
 
@@ -457,25 +407,13 @@ export const useChat = () => {
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
-    // Save user message to database
-    try {
-      await supabase.from('messages').insert({
-        conversation_id: conversationId,
-        role: 'user',
-        content,
-      });
-    } catch (error) {
-      console.error('Error saving user message:', error);
-    }
-
-    // Prepare messages for AI
+    // Prepare messages for AI (excluding the new user message, as the RPC appends it)
     const aiMessages = messages.map(m => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
     }));
-    aiMessages.push({ role: 'user', content });
 
-    // Include current code context
+    // Include current code context if it exists
     if (currentCode && (currentCode.html || currentCode.css || currentCode.js)) {
       const codeContext = `Código actual:\n\nHTML:\n${currentCode.html}\n\nCSS:\n${currentCode.css}\n\nJS:\n${currentCode.js}`;
       aiMessages.unshift({ role: 'user', content: `Contexto: ${codeContext}` });
@@ -492,6 +430,8 @@ export const useChat = () => {
     }]);
 
     await streamChat({
+      conversationId: conversationId!,
+      userMessage: content,
       messages: aiMessages,
       settings: settings ? {
         narrativeStyle: settings.narrative_style,
@@ -506,7 +446,7 @@ export const useChat = () => {
           prev.map(m => m.id === assistantId ? { ...m, content: narrativeContent } : m)
         );
       },
-      onDone: async () => {
+      onDone: async (insertedMessageId) => {
         setIsLoading(false);
 
         // Try to parse as project structure first
@@ -539,22 +479,12 @@ export const useChat = () => {
           setCurrentCode(finalCode);
           setCurrentProject(project);
 
-          // Save build to database
-          try {
-            const { data: savedMessage } = await supabase
-              .from('messages')
-              .insert({
-                conversation_id: conversationId,
-                role: 'assistant',
-                content: assistantContent,
-              })
-              .select()
-              .single();
-
-            if (savedMessage) {
+          // Save build to database using the assistant message ID created by the RPC function
+          if (insertedMessageId) {
+            try {
               const { data: build } = await supabase.from('builds').insert({
                 conversation_id: conversationId,
-                message_id: savedMessage.id,
+                message_id: insertedMessageId,
                 label: newVersion.label,
                 html: finalCode.html,
                 css: finalCode.css,
@@ -588,20 +518,9 @@ export const useChat = () => {
                 entity_id: build?.id,
                 details: { label: newVersion.label, project_id: currentProjectId },
               });
+            } catch (error) {
+              console.error('Error saving build:', error);
             }
-          } catch (error) {
-            console.error('Error saving build:', error);
-          }
-        } else {
-          // Save assistant message without code
-          try {
-            await supabase.from('messages').insert({
-              conversation_id: conversationId,
-              role: 'assistant',
-              content: assistantContent,
-            });
-          } catch (error) {
-            console.error('Error saving assistant message:', error);
           }
         }
       },
