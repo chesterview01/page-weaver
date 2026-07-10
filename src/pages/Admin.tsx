@@ -170,15 +170,26 @@ const Admin: React.FC = () => {
             .from('wallets')
             .select('credits')
             .eq('user_id', request.user_id)
-            .single();
+            .maybeSingle();
 
           const currentCredits = wallet?.credits || 0;
+          const newCredits = currentCredits + plan.credits_per_month;
 
-          // Add credits to wallet
-          await supabase
-            .from('wallets')
-            .update({ credits: currentCredits + plan.credits_per_month })
-            .eq('user_id', request.user_id);
+          if (wallet) {
+            // Update existing wallet
+            await supabase
+              .from('wallets')
+              .update({ credits: newCredits, updated_at: new Date().toISOString() })
+              .eq('user_id', request.user_id);
+          } else {
+            // Create new wallet
+            await supabase
+              .from('wallets')
+              .insert({
+                user_id: request.user_id,
+                credits: newCredits
+              });
+          }
 
           // Log the credit addition
           await supabase
@@ -196,14 +207,24 @@ const Admin: React.FC = () => {
           .from('wallets')
           .select('credits')
           .eq('user_id', request.user_id)
-          .single();
+          .maybeSingle();
 
         const currentCredits = wallet?.credits || 0;
+        const newCredits = currentCredits + request.credits;
 
-        await supabase
-          .from('wallets')
-          .update({ credits: currentCredits + request.credits })
-          .eq('user_id', request.user_id);
+        if (wallet) {
+          await supabase
+            .from('wallets')
+            .update({ credits: newCredits, updated_at: new Date().toISOString() })
+            .eq('user_id', request.user_id);
+        } else {
+          await supabase
+            .from('wallets')
+            .insert({
+              user_id: request.user_id,
+              credits: newCredits
+            });
+        }
 
         await supabase
           .from('credit_logs')
