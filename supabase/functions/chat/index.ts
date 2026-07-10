@@ -1,10 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
+// Dynamic CORS headers helper to cleanly handle dynamic origins like Vercel preview subdomains
+const getCorsHeaders = (req: Request) => {
+  const origin = req.headers.get("origin") || "*";
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
+    "Access-Control-Max-Age": "86400",
+  };
 };
 
 // Different prompts based on narrative style
@@ -83,6 +88,9 @@ IMPORTANT:
 };
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
+  // OPTIONS preflight request must return immediately with proper headers
   if (req.method === "OPTIONS") {
     return new Response("ok", {
       status: 200,
@@ -91,34 +99,45 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, narrativeStyle = 'detailed', customApiUrl, customApiKey, useCustomAI } = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch (err) {
+      throw new Error(`Failed to parse request JSON body: ${err.message}`);
+    }
+
+    const { messages = [], narrativeStyle = 'detailed', customApiUrl, customApiKey, useCustomAI } = body;
 
     // Default: Lovable AI Gateway
     let apiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
     let apiKey = Deno.env.get("LOVABLE_API_KEY");
     let model: string | undefined = "google/gemini-3-flash-preview";
 
-    // Admin-controlled AI dual system: read ai_provider_config via service role
+    // Admin-controlled AI dual system: read ai_provider_config via service role to bypass RLS safely
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL");
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
       if (supabaseUrl && serviceKey) {
         const admin = createClient(supabaseUrl, serviceKey);
-        const { data: cfg } = await admin
+        const { data: cfg, error: cfgError } = await admin
           .from("ai_provider_config")
           .select("provider, gemini_api_key")
           .order("updated_at", { ascending: false })
           .limit(1)
           .maybeSingle();
 
-        if (cfg?.provider === "gemini" && cfg.gemini_api_key) {
+        if (cfgError) {
+          console.error("ai_provider_config query failed:", cfgError);
+        } else if (cfg?.provider === "gemini" && cfg.gemini_api_key) {
           apiUrl = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
           apiKey = cfg.gemini_api_key;
           model = "gemini-2.5-flash";
         }
+      } else {
+        console.warn("Supabase database connection parameters are missing in env");
       }
     } catch (e) {
-      console.warn("ai_provider_config read failed, using default provider:", e);
+      console.warn("ai_provider_config read threw an exception, using default provider:", e);
     }
 
     // User-level custom API override still wins
@@ -165,7 +184,7 @@ serve(async (req) => {
       }
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
+      return new Response(JSON.stringify({ error: `AI gateway error: ${response.status} ${errorText}` }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

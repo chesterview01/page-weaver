@@ -45,18 +45,24 @@ const PublishDialog: React.FC<PublishDialogProps> = ({
         return;
       }
 
-      // Fallback to direct query if RPC is not yet implemented in the database
-      const { data } = await supabase
+      // If RPC failed or wasn't available, attempt fallback direct query safely (only for admins)
+      // Any RLS errors or 406 will be caught and handled silently
+      const { data, error: queryError } = await supabase
         .from('deployment_config')
         .select('main_domain')
         .eq('is_active', true)
         .maybeSingle();
 
-      if (data?.main_domain) {
+      if (!queryError && data?.main_domain) {
         setMainDomain(data.main_domain);
+      } else {
+        // Silent fallback to default domain to prevent console noise/errors
+        setMainDomain('chestercodeia.com');
       }
     } catch (error) {
-      console.error('Error loading deployment config:', error);
+      // Handle silently to keep the interface working flawlessly with the default domain
+      setMainDomain('chestercodeia.com');
+      console.warn('Silent fallback to default domain chestercodeia.com:', error);
     }
   };
 
