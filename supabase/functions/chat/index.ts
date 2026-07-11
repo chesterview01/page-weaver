@@ -1,15 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Dynamic CORS headers helper to cleanly handle dynamic origins like Vercel preview subdomains
-const getCorsHeaders = (req: Request) => {
-  const origin = req.headers.get("origin") || "*";
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
-    "Access-Control-Max-Age": "86400",
-  };
+// Static CORS headers defined specifically to cleanly handle all environments and bypass preflight blockages
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
+  "Access-Control-Max-Age": "86400",
 };
 
 // Different prompts based on narrative style
@@ -157,8 +154,6 @@ const createGeminiToOpenAiTransformer = () => {
 };
 
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
-
   // OPTIONS preflight request must return immediately with proper headers
   if (req.method === "OPTIONS") {
     return new Response("ok", {
