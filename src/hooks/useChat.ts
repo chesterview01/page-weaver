@@ -7,8 +7,6 @@ import { useAuthContext } from '@/contexts/AuthContext';
 import { useLocalPersistence } from '@/hooks/useLocalPersistence';
 import { generateThumbnail } from '@/utils/thumbnailGenerator';
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
-
 // Parse JSON project structure from AI response
 const parseProjectFromResponse = (content: string): ProjectOutput | null => {
   try {
@@ -84,105 +82,6 @@ const extractNarrative = (content: string): string => {
   
   return narrative || content;
 };
-
-// Stream chat from edge function
-async function streamChat({
-  messages,
-  settings,
-  onDelta,
-  onDone,
-  onError,
-}: {
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
-  settings: { narrativeStyle: string; customApiUrl?: string; customApiKey?: string; useCustomAI?: boolean } | null;
-  onDelta: (deltaText: string) => void;
-  onDone: () => void;
-  onError: (error: Error) => void;
-}) {
-  try {
-    const resp = await fetch(CHAT_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
-      body: JSON.stringify({
-        messages,
-        narrativeStyle: settings?.narrativeStyle || 'detailed',
-        customApiUrl: settings?.customApiUrl,
-        customApiKey: settings?.customApiKey,
-        useCustomAI: settings?.useCustomAI,
-      }),
-    });
-
-    if (resp.status === 429) {
-      throw new Error("Límite de peticiones excedido. Por favor, espera un momento.");
-    }
-    if (resp.status === 402) {
-      throw new Error("Límite de uso alcanzado. Por favor, añade créditos.");
-    }
-    if (!resp.ok || !resp.body) {
-      throw new Error("Error al conectar con el servicio de IA");
-    }
-
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let textBuffer = "";
-    let streamDone = false;
-
-    while (!streamDone) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      textBuffer += decoder.decode(value, { stream: true });
-
-      let newlineIndex: number;
-      while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-        let line = textBuffer.slice(0, newlineIndex);
-        textBuffer = textBuffer.slice(newlineIndex + 1);
-
-        if (line.endsWith("\r")) line = line.slice(0, -1);
-        if (line.startsWith(":") || line.trim() === "") continue;
-        if (!line.startsWith("data: ")) continue;
-
-        const jsonStr = line.slice(6).trim();
-        if (jsonStr === "[DONE]") {
-          streamDone = true;
-          break;
-        }
-
-        try {
-          const parsed = JSON.parse(jsonStr);
-          const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-          if (content) onDelta(content);
-        } catch {
-          textBuffer = line + "\n" + textBuffer;
-          break;
-        }
-      }
-    }
-
-    // Final flush
-    if (textBuffer.trim()) {
-      for (let raw of textBuffer.split("\n")) {
-        if (!raw) continue;
-        if (raw.endsWith("\r")) raw = raw.slice(0, -1);
-        if (raw.startsWith(":") || raw.trim() === "") continue;
-        if (!raw.startsWith("data: ")) continue;
-        const jsonStr = raw.slice(6).trim();
-        if (jsonStr === "[DONE]") continue;
-        try {
-          const parsed = JSON.parse(jsonStr);
-          const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-          if (content) onDelta(content);
-        } catch { /* ignore */ }
-      }
-    }
-
-    onDone();
-  } catch (error) {
-    onError(error instanceof Error ? error : new Error("Error desconocido"));
-  }
-}
 
 export const useChat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -468,22 +367,66 @@ export const useChat = () => {
       console.error('Error saving user message:', error);
     }
 
-    // Prepare messages for AI
-    const aiMessages = messages.map(m => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    }));
-    aiMessages.push({ role: 'user', content });
+    // Construct a unified, rich prompt incorporating system rules, code context, and chat history for the RPC
+    let promptText = `Eres un asistente experto en desarrollo web que genera proyectos web completos con su estructura de archivos correcta.
 
-    // Include current code context
+REGLAS DE DISEÑO:
+- Genera código moderno, responsive y visualmente atractivo.
+- Incluye efectos hover y transiciones en elementos interactivos.
+- Usa propiedades CSS modernas, variables, flexbox, grid, gradientes y animaciones.
+
+REGLA CRÍTICA: Tu respuesta debe tener DOS PARTES DISTINTAS:
+PART 1 - NARRATIVE: Empieza con una explicación amigable explicando qué estás construyendo. NO muestres ningún código aquí.
+PART 2 - PROJECT STRUCTURE: Justo después, debes incluir un bloque JSON de código exacto:
+\`\`\`json
+{
+  "projectName": "project-name-here",
+  "files": [
+    {
+      "path": "src/pages/index.html",
+      "content": "..."
+    },
+    {
+      "path": "src/styles/main.css",
+      "content": "..."
+    },
+    {
+      "path": "src/scripts/main.js",
+      "content": "..."
+    },
+    {
+      "path": "package.json",
+      "content": "..."
+    },
+    {
+      "path": "README.md",
+      "content": "..."
+    }
+  ]
+}
+\`\`\`
+
+`;
+
+    // Include current code context in the prompt
     if (currentCode && (currentCode.html || currentCode.css || currentCode.js)) {
-      const codeContext = `Código actual:\n\nHTML:\n${currentCode.html}\n\nCSS:\n${currentCode.css}\n\nJS:\n${currentCode.js}`;
-      aiMessages.unshift({ role: 'user', content: `Contexto: ${codeContext}` });
+      promptText += `Código actual del proyecto:\n\nHTML:\n${currentCode.html}\n\nCSS:\n${currentCode.css}\n\nJS:\n${currentCode.js}\n\n---\n\n`;
     }
 
-    let assistantContent = '';
+    // Include recent history context (last 4 messages)
+    if (messages.length > 0) {
+      promptText += "Conversación reciente:\n";
+      messages.slice(-4).forEach(m => {
+        promptText += `${m.role === 'user' ? 'Usuario' : 'Asistente'}: ${m.content}\n`;
+      });
+      promptText += "\n---\n\n";
+    }
+
+    promptText += `Nueva solicitud del usuario:\n${content}`;
+
     const assistantId = `msg-${Date.now()}-ai`;
 
+    // Add empty placeholder assistant message in the UI state
     setMessages(prev => [...prev, {
       id: assistantId,
       role: 'assistant',
@@ -491,131 +434,142 @@ export const useChat = () => {
       timestamp: new Date(),
     }]);
 
-    await streamChat({
-      messages: aiMessages,
-      settings: settings ? {
-        narrativeStyle: settings.narrative_style,
-        customApiUrl: settings.custom_api_url || undefined,
-        customApiKey: settings.custom_api_key || undefined,
-        useCustomAI: settings.use_custom_ai,
-      } : null,
-      onDelta: (chunk) => {
-        assistantContent += chunk;
-        const narrativeContent = extractNarrative(assistantContent);
-        setMessages(prev => 
-          prev.map(m => m.id === assistantId ? { ...m, content: narrativeContent } : m)
-        );
-      },
-      onDone: async () => {
-        setIsLoading(false);
+    try {
+      // Call the secure database RPC 'chat_with_gemini'
+      const { data, error: rpcError } = await supabase.rpc('chat_with_gemini', {
+        prompt_text: promptText,
+        model_name: 'gemini-3.1-flash-lite'
+      });
 
-        // Try to parse as project structure first
-        const project = parseProjectFromResponse(assistantContent);
-        const code = project ? projectToCodeOutput(project) : parseCodeFromResponse(assistantContent);
-        const narrativeContent = extractNarrative(assistantContent);
-        
-        if (code || project) {
-          const finalCode = code || { html: '', css: '', js: '' };
-          
-          const newVersion: Version = {
-            id: `v-${Date.now()}`,
-            timestamp: new Date(),
-            label: content.substring(0, 40) + (content.length > 40 ? '...' : ''),
-            code: finalCode,
-            project: project || undefined,
-          };
+      if (rpcError) throw rpcError;
 
-          setMessages(prev =>
-            prev.map(m => m.id === assistantId ? { 
-              ...m, 
-              content: narrativeContent, 
-              codeOutput: finalCode,
-              projectOutput: project || undefined,
-            } : m)
-          );
-
-          setVersions(prev => [newVersion, ...prev]);
-          setCurrentVersion(newVersion.id);
-          setCurrentCode(finalCode);
-          setCurrentProject(project);
-
-          // Save build to database
-          try {
-            const { data: savedMessage } = await supabase
-              .from('messages')
-              .insert({
-                conversation_id: conversationId,
-                role: 'assistant',
-                content: assistantContent,
-              })
-              .select()
-              .single();
-
-            if (savedMessage) {
-              const { data: build } = await supabase.from('builds').insert({
-                conversation_id: conversationId,
-                message_id: savedMessage.id,
-                label: newVersion.label,
-                html: finalCode.html,
-                css: finalCode.css,
-                js: finalCode.js,
-                project_id: currentProjectId,
-              }).select().single();
-
-              if (build) {
-                setLastBuildId(build.id);
-                
-                // Generate and save thumbnail in background
-                generateThumbnail(finalCode.html, finalCode.css, finalCode.js).then(async (thumbnailUrl) => {
-                  if (thumbnailUrl) {
-                    await supabase
-                      .from('builds')
-                      .update({ thumbnail_url: thumbnailUrl })
-                      .eq('id', build.id);
-                  }
-                }).catch(console.error);
-                
-                // Show toast for auto-save
-                toast({
-                  title: "Build guardado",
-                  description: "Tu código ha sido guardado automáticamente.",
-                });
-              }
-
-              await supabase.from('audit_logs').insert({
-                action: 'build_created',
-                entity_type: 'build',
-                entity_id: build?.id,
-                details: { label: newVersion.label, project_id: currentProjectId },
-              });
-            }
-          } catch (error) {
-            console.error('Error saving build:', error);
-          }
+      // Safely extract the generated response text from the RPC result JSON
+      let assistantContent = "";
+      if (data) {
+        if (typeof data === 'string') {
+          assistantContent = data;
+        } else if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+          assistantContent = data.candidates[0].content.parts[0].text;
+        } else if (data.text) {
+          assistantContent = data.text;
         } else {
-          // Save assistant message without code
-          try {
-            await supabase.from('messages').insert({
+          assistantContent = JSON.stringify(data);
+        }
+      }
+
+      if (!assistantContent) {
+        throw new Error("No se recibió respuesta de la IA.");
+      }
+
+      setIsLoading(false);
+
+      // Parse narrative text and structure/code outputs
+      const project = parseProjectFromResponse(assistantContent);
+      const code = project ? projectToCodeOutput(project) : parseCodeFromResponse(assistantContent);
+      const narrativeContent = extractNarrative(assistantContent);
+
+      // Update UI with the final result
+      setMessages(prev =>
+        prev.map(m => m.id === assistantId ? {
+          ...m,
+          content: narrativeContent,
+          codeOutput: code || undefined,
+          projectOutput: project || undefined
+        } : m)
+      );
+
+      if (code || project) {
+        const finalCode = code || { html: '', css: '', js: '' };
+
+        const newVersion: Version = {
+          id: `v-${Date.now()}`,
+          timestamp: new Date(),
+          label: content.substring(0, 40) + (content.length > 40 ? '...' : ''),
+          code: finalCode,
+          project: project || undefined,
+        };
+
+        setVersions(prev => [newVersion, ...prev]);
+        setCurrentVersion(newVersion.id);
+        setCurrentCode(finalCode);
+        setCurrentProject(project);
+
+        // Save assistant message and build data to the database
+        try {
+          const { data: savedMessage } = await supabase
+            .from('messages')
+            .insert({
               conversation_id: conversationId,
               role: 'assistant',
               content: assistantContent,
+            })
+            .select()
+            .single();
+
+          if (savedMessage) {
+            const { data: build } = await supabase.from('builds').insert({
+              conversation_id: conversationId,
+              message_id: savedMessage.id,
+              label: newVersion.label,
+              html: finalCode.html,
+              css: finalCode.css,
+              js: finalCode.js,
+              project_id: currentProjectId,
+            }).select().single();
+
+            if (build) {
+              setLastBuildId(build.id);
+
+              // Generate and save thumbnail in background
+              generateThumbnail(finalCode.html, finalCode.css, finalCode.js).then(async (thumbnailUrl) => {
+                if (thumbnailUrl) {
+                  await supabase
+                    .from('builds')
+                    .update({ thumbnail_url: thumbnailUrl })
+                    .eq('id', build.id);
+                }
+              }).catch(console.error);
+
+              toast({
+                title: "Build guardado",
+                description: "Tu código ha sido guardado automáticamente.",
+              });
+            }
+
+            await supabase.from('audit_logs').insert({
+              action: 'build_created',
+              entity_type: 'build',
+              entity_id: build?.id,
+              details: { label: newVersion.label, project_id: currentProjectId },
             });
-          } catch (error) {
-            console.error('Error saving assistant message:', error);
           }
+        } catch (error) {
+          console.error('Error saving build:', error);
         }
-      },
-      onError: (error) => {
-        setIsLoading(false);
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
-        setMessages(prev => prev.filter(m => m.id !== assistantId));
-      },
-    });
-  }, [conversationId, messages, currentCode, settings, currentProjectId, isAuthenticated, wallet, deductCredit]);
+      } else {
+        // Save assistant message without code
+        try {
+          await supabase.from('messages').insert({
+            conversation_id: conversationId,
+            role: 'assistant',
+            content: assistantContent,
+          });
+        } catch (error) {
+          console.error('Error saving assistant message:', error);
+        }
+      }
+
+    } catch (error: any) {
+      setIsLoading(false);
+      toast({
+        title: "Error de IA",
+        description: error.message || "Error al conectar con la base de datos.",
+        variant: "destructive",
+      });
+      // Remove placeholder message on failure
+      setMessages(prev => prev.filter(m => m.id !== assistantId));
+    }
+  }, [conversationId, messages, currentCode, currentProjectId, isAuthenticated, wallet, deductCredit]);
 
   const selectVersion = useCallback((versionId: string) => {
     const version = versions.find(v => v.id === versionId);
