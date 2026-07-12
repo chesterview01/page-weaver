@@ -65,26 +65,31 @@ export async function generateThumbnail(html: string, css: string, js: string): 
     const filename = `thumbnail_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
 
     // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
-      .from('thumbnails')
-      .upload(filename, blob, {
-        contentType: 'image/png',
-        cacheControl: '3600',
-      });
+    try {
+      const { data, error } = await supabase.storage
+        .from('thumbnails')
+        .upload(filename, blob, {
+          contentType: 'image/png',
+          cacheControl: '3600',
+        });
 
-    if (error) {
-      console.error('Error uploading thumbnail:', error);
+      if (error) {
+        console.warn('Chester Code: Falla al subir thumbnail. Verifica que el bucket "thumbnails" exista en Supabase y tenga políticas públicas.');
+        return null;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('thumbnails')
+        .getPublicUrl(data.path);
+
+      return urlData.publicUrl;
+    } catch (uploadError) {
+      console.warn('Chester Code: Falla al subir thumbnail. Verifica que el bucket "thumbnails" exista en Supabase y tenga políticas públicas.');
       return null;
     }
-
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('thumbnails')
-      .getPublicUrl(data.path);
-
-    return urlData.publicUrl;
   } catch (error) {
-    console.error('Error generating thumbnail:', error);
+    console.warn('Chester Code: Falla al subir thumbnail. Verifica que el bucket "thumbnails" exista en Supabase y tenga políticas públicas.');
     return null;
   }
 }

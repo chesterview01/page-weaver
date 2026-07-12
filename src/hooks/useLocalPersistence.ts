@@ -1,8 +1,9 @@
 import { useCallback } from 'react';
-import { CodeOutput, Message, Version } from '@/types/chat';
+import { CodeOutput, Message, Version, ProjectOutput } from '@/types/chat';
 
 const STORAGE_KEYS = {
   CURRENT_CODE: 'chester_current_code',
+  CURRENT_PROJECT: 'chester_current_project',
   MESSAGES: 'chester_messages',
   VERSIONS: 'chester_versions',
   CONVERSATION_ID: 'chester_conversation_id',
@@ -13,6 +14,7 @@ const STORAGE_KEYS = {
 
 export interface PersistedState {
   currentCode: CodeOutput | null;
+  currentProject: ProjectOutput | null;
   messages: Message[];
   versions: Version[];
   conversationId: string | null;
@@ -27,6 +29,9 @@ export const useLocalPersistence = () => {
     try {
       if (state.currentCode !== undefined) {
         localStorage.setItem(STORAGE_KEYS.CURRENT_CODE, JSON.stringify(state.currentCode));
+      }
+      if (state.currentProject !== undefined) {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT, JSON.stringify(state.currentProject));
       }
       if (state.messages !== undefined) {
         localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(state.messages));
@@ -55,6 +60,7 @@ export const useLocalPersistence = () => {
   const loadState = useCallback((): PersistedState => {
     try {
       const currentCode = localStorage.getItem(STORAGE_KEYS.CURRENT_CODE);
+      const currentProject = localStorage.getItem(STORAGE_KEYS.CURRENT_PROJECT);
       const messages = localStorage.getItem(STORAGE_KEYS.MESSAGES);
       const versions = localStorage.getItem(STORAGE_KEYS.VERSIONS);
       const conversationId = localStorage.getItem(STORAGE_KEYS.CONVERSATION_ID);
@@ -62,13 +68,17 @@ export const useLocalPersistence = () => {
       const lastBuildId = localStorage.getItem(STORAGE_KEYS.LAST_BUILD_ID);
       const lastSync = localStorage.getItem(STORAGE_KEYS.LAST_SYNC);
 
+      type SerializedMessage = Omit<Message, 'timestamp'> & { timestamp: string };
+      type SerializedVersion = Omit<Version, 'timestamp'> & { timestamp: string };
+
       return {
-        currentCode: currentCode ? JSON.parse(currentCode) : null,
-        messages: messages ? JSON.parse(messages).map((m: any) => ({
+        currentCode: currentCode ? JSON.parse(currentCode) as CodeOutput : null,
+        currentProject: currentProject ? JSON.parse(currentProject) as ProjectOutput : null,
+        messages: messages ? (JSON.parse(messages) as SerializedMessage[]).map((m) => ({
           ...m,
           timestamp: new Date(m.timestamp),
         })) : [],
-        versions: versions ? JSON.parse(versions).map((v: any) => ({
+        versions: versions ? (JSON.parse(versions) as SerializedVersion[]).map((v) => ({
           ...v,
           timestamp: new Date(v.timestamp),
         })) : [],
@@ -81,6 +91,7 @@ export const useLocalPersistence = () => {
       console.error('Error loading from localStorage:', error);
       return {
         currentCode: null,
+        currentProject: null,
         messages: [],
         versions: [],
         conversationId: null,

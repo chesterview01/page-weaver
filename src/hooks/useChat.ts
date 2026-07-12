@@ -6,6 +6,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useLocalPersistence } from '@/hooks/useLocalPersistence';
 import { generateThumbnail } from '@/utils/thumbnailGenerator';
+import { projectTemplate } from '@/constants/projectTemplate';
 
 // Parse JSON project structure from AI response
 const parseProjectFromResponse = (content: string): ProjectOutput | null => {
@@ -53,6 +54,33 @@ const projectToCodeOutput = (project: ProjectOutput): CodeOutput => {
   return { html: html.trim(), css: css.trim(), js: js.trim() };
 };
 
+// Merge project files to keep unchanged files intact
+const mergeProjectFiles = (existing: ProjectOutput | null, incoming: ProjectOutput): ProjectOutput => {
+  if (!existing) return incoming;
+
+  // Clone existing files
+  const mergedFiles = [...existing.files];
+
+  incoming.files.forEach(incomingFile => {
+    const existingIndex = mergedFiles.findIndex(f => f.path === incomingFile.path);
+    if (existingIndex !== -1) {
+      // Overwrite existing file content
+      mergedFiles[existingIndex] = {
+        path: incomingFile.path,
+        content: incomingFile.content
+      };
+    } else {
+      // Add new file
+      mergedFiles.push(incomingFile);
+    }
+  });
+
+  return {
+    projectName: incoming.projectName || existing.projectName || 'chester-code-project',
+    files: mergedFiles
+  };
+};
+
 // Parse code blocks from AI response (legacy fallback)
 const parseCodeFromResponse = (content: string): CodeOutput | null => {
   const htmlMatch = content.match(/```html\n?([\s\S]*?)```/);
@@ -88,8 +116,8 @@ export const useChat = () => {
   const [versions, setVersions] = useState<Version[]>([]);
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentCode, setCurrentCode] = useState<CodeOutput | null>(null);
-  const [currentProject, setCurrentProject] = useState<ProjectOutput | null>(null);
+  const [currentProject, setCurrentProject] = useState<ProjectOutput | null>(projectTemplate);
+  const [currentCode, setCurrentCode] = useState<CodeOutput | null>(projectToCodeOutput(projectTemplate));
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [lastBuildId, setLastBuildId] = useState<string | null>(null);
@@ -107,6 +135,7 @@ export const useChat = () => {
     
     saveState({
       currentCode,
+      currentProject,
       messages,
       versions,
       conversationId,
@@ -114,7 +143,7 @@ export const useChat = () => {
       lastBuildId,
       lastSync: new Date().toISOString(),
     });
-  }, [messages, versions, currentCode, conversationId, currentProjectId, lastBuildId, isInitialized, saveState]);
+  }, [messages, versions, currentCode, currentProject, conversationId, currentProjectId, lastBuildId, isInitialized, saveState]);
 
   // Initialize: Load from cache first, then sync with database
   useEffect(() => {
@@ -142,6 +171,7 @@ export const useChat = () => {
           };
           
           setCurrentCode(restoredCode);
+          setCurrentProject(null);
           
           const restoredVersion: Version = {
             id: `restored-${Date.now()}`,
@@ -181,6 +211,7 @@ export const useChat = () => {
         if (cached.messages.length > 0) setMessages(cached.messages);
         if (cached.versions.length > 0) setVersions(cached.versions);
         if (cached.currentCode) setCurrentCode(cached.currentCode);
+        if (cached.currentProject) setCurrentProject(cached.currentProject);
         if (cached.conversationId) setConversationId(cached.conversationId);
         if (cached.projectId) setCurrentProjectId(cached.projectId);
         if (cached.lastBuildId) setLastBuildId(cached.lastBuildId);
@@ -250,13 +281,37 @@ export const useChat = () => {
         .order('created_at', { ascending: true });
       
       if (msgs) {
-        const loadedMessages: Message[] = msgs.map(m => ({
-          id: m.id,
-          role: m.role as 'user' | 'assistant',
-          content: extractNarrative(m.content),
-          timestamp: new Date(m.created_at),
-        }));
+        const loadedMessages: Message[] = msgs.map(m => {
+          const project = parseProjectFromResponse(m.content);
+          const code = project ? projectToCodeOutput(project) : parseCodeFromResponse(m.content);
+          return {
+            id: m.id,
+            role: m.role as 'user' | 'assistant',
+            content: extractNarrative(m.content),
+            timestamp: new Date(m.created_at),
+            projectOutput: project || undefined,
+            codeOutput: code || undefined,
+          };
+        });
         setMessages(loadedMessages);
+
+        // Find the latest message that has a project output to restore state
+        const latestMsgWithProject = [...loadedMessages].reverse().find(m => m.projectOutput);
+        if (latestMsgWithProject && latestMsgWithProject.projectOutput) {
+          setCurrentProject(latestMsgWithProject.projectOutput);
+          setCurrentCode(projectToCodeOutput(latestMsgWithProject.projectOutput));
+        } else {
+          // Fallback to latest message with codeOutput
+          const latestMsgWithCode = [...loadedMessages].reverse().find(m => m.codeOutput);
+          if (latestMsgWithCode && latestMsgWithCode.codeOutput) {
+            setCurrentCode(latestMsgWithCode.codeOutput);
+            setCurrentProject(null);
+          } else {
+            // Default to template if no messages have code/project
+            setCurrentProject(projectTemplate);
+            setCurrentCode(projectToCodeOutput(projectTemplate));
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading messages from database:', error);
@@ -384,9 +439,26 @@ REGLAS ESTRICTAS DE DISEÑO:
 3. ICONOGRAFÍA: Usa iconos modernos (como Lucide o Heroicons) referenciándolos correctamente.
 4. RESPONSIVE: Todo debe verse perfecto en móviles, tablets y escritorio usando los prefijos sm:, md:, lg: de Tailwind.
 
-REGLAS DE CÓDIGO:
+ENTORNO DE DESARROLLO ESTÁNDAR:
+Trabajas sobre un proyecto React + Vite + TailwindCSS. El usuario YA TIENE configurados y funcionando los archivos base (package.json, vite.config.ts, etc.).
+ESTÁ PROHIBIDO generar, modificar o devolver los archivos de configuración a menos que se te pida instalar una nueva dependencia explícitamente.
+
+PROJECT MANIFESTO - REGLAS DE ARQUITECTURA CRÍTICAS:
+1. SEPARACIÓN DE RESPONSABILIDADES OBLIGATORIA:
+   - \`src/components/ui/\`: Componentes atómicos (Botones, Inputs, Cards).
+   - \`src/components/layout/\`: Elementos de estructura (Navbar, Footer, Sidebar).
+   - \`src/pages/\`: Vistas completas que importan los componentes.
+   - \`src/hooks/\`: Toda la lógica de negocio y llamadas a APIs/Supabase.
+   - \`src/lib/\`: Configuraciones (ej. supabaseClient.ts).
+
+2. CERO MONOLITOS: NUNCA entregues una aplicación completa en un solo archivo \`index.html\` o \`App.tsx\`. Debes separar obligatoriamente la lógica en componentes y archivos específicos dentro de las carpetas mencionadas.
+
+3. MODULARIDAD EXTREMA: Si el componente o vista que vas a crear es muy grande, divídelo en piezas más pequeñas dentro de \`src/components/\`.
+
+Al entregar tu respuesta JSON (PART 2 - PROJECT STRUCTURE), devuelve únicamente los archivos que hayas creado o modificado siguiendo estrictamente este árbol de carpetas.
+
+REGLAS DE CÓDIGO ADICIONALES:
 1. CÓDIGO COMPLETO: NUNCA dejes funciones a medias, NUNCA uses comentarios como '...resto del código aquí'. Debes devolver el código 100% funcional.
-2. ESTRUCTURA: Si generas múltiples archivos, especifica claramente el nombre del archivo antes del bloque de código.
 
 REGLAS DE SALIDA DE ENTREGAS (CRÍTICO):
 Tu respuesta debe tener exactamente DOS PARTES DISTINTAS organizadas de la siguiente manera:
@@ -395,30 +467,18 @@ PART 1 - NARRATIVE:
 Empieza siempre con una explicación amigable, clara y profesional explicando los cambios que estás construyendo o modificando. NO muestres ningún bloque de código en esta sección.
 
 PART 2 - PROJECT STRUCTURE:
-Justo después de tu narrativa, debes incluir un único bloque de código JSON con la estructura completa del proyecto que contenga exactamente este formato:
+Justo después de tu narrativa, debes incluir un único bloque de código JSON con la estructura de archivos que contenga únicamente los archivos creados o modificados en el siguiente formato JSON exacto:
 \`\`\`json
 {
   "projectName": "nombre-del-proyecto",
   "files": [
     {
-      "path": "src/pages/index.html",
-      "content": "<!DOCTYPE html>\\n..."
+      "path": "src/pages/Home.tsx",
+      "content": "import React from 'react';\\n..."
     },
     {
-      "path": "src/styles/main.css",
-      "content": "/* Contenido CSS con clases Tailwind o estilos globales base si aplica */"
-    },
-    {
-      "path": "src/scripts/main.js",
-      "content": "// Código funcional interactivo JS"
-    },
-    {
-      "path": "package.json",
-      "content": "{ \\"name\\": \\"...\\" }"
-    },
-    {
-      "path": "README.md",
-      "content": "# Nombre del Proyecto..."
+      "path": "src/components/ui/Button.tsx",
+      "content": "import React from 'react';\\n..."
     }
   ]
 }
@@ -427,8 +487,13 @@ Justo después de tu narrativa, debes incluir un único bloque de código JSON c
 Asegúrate de que el JSON sea completamente válido, sin errores de escape, y que las comillas dobles internas de los contenidos estén debidamente escapadas.
 `;
 
-    // Include current code context in the system prompt if it exists
-    if (currentCode && (currentCode.html || currentCode.css || currentCode.js)) {
+    // Include current project context in the system prompt if it exists
+    if (currentProject && currentProject.files.length > 0) {
+      combinedSystemPrompt += `\n\nESTRUCTURA Y ARCHIVOS ACTUALES DEL PROYECTO (Utilízalos como base y modifica o añade archivos sobre este árbol):\n`;
+      currentProject.files.forEach(file => {
+        combinedSystemPrompt += `\n--- Archivo: ${file.path} ---\n${file.content}\n`;
+      });
+    } else if (currentCode && (currentCode.html || currentCode.css || currentCode.js)) {
       combinedSystemPrompt += `\n\nDATOS DE REFERENCIA (Código actual del proyecto para que continúes o modifiques sobre él):\n\nHTML:\n${currentCode.html}\n\nCSS:\n${currentCode.css}\n\nJS:\n${currentCode.js}\n`;
     }
 
@@ -492,8 +557,21 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
       setIsLoading(false);
 
       // Parse narrative text and structure/code outputs
-      const project = parseProjectFromResponse(assistantContent);
-      const code = project ? projectToCodeOutput(project) : parseCodeFromResponse(assistantContent);
+      const parsedProject = parseProjectFromResponse(assistantContent);
+      let mergedProject: ProjectOutput | null = null;
+      let finalCode: CodeOutput | null = null;
+
+      if (parsedProject) {
+        // Merge with existing project files so that unmodified files are not wiped out!
+        mergedProject = mergeProjectFiles(currentProject, parsedProject);
+        finalCode = projectToCodeOutput(mergedProject);
+      } else {
+        const parsedCode = parseCodeFromResponse(assistantContent);
+        if (parsedCode) {
+          finalCode = parsedCode;
+        }
+      }
+
       const narrativeContent = extractNarrative(assistantContent);
 
       // Update UI with the final result
@@ -501,26 +579,26 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
         prev.map(m => m.id === assistantId ? {
           ...m,
           content: narrativeContent,
-          codeOutput: code || undefined,
-          projectOutput: project || undefined
+          codeOutput: finalCode || undefined,
+          projectOutput: mergedProject || undefined
         } : m)
       );
 
-      if (code || project) {
-        const finalCode = code || { html: '', css: '', js: '' };
+      if (finalCode || mergedProject) {
+        const resolvedCode = finalCode || { html: '', css: '', js: '' };
 
         const newVersion: Version = {
           id: `v-${Date.now()}`,
           timestamp: new Date(),
           label: content.substring(0, 40) + (content.length > 40 ? '...' : ''),
-          code: finalCode,
-          project: project || undefined,
+          code: resolvedCode,
+          project: mergedProject || undefined,
         };
 
         setVersions(prev => [newVersion, ...prev]);
         setCurrentVersion(newVersion.id);
-        setCurrentCode(finalCode);
-        setCurrentProject(project);
+        setCurrentCode(resolvedCode);
+        setCurrentProject(mergedProject);
 
         // Save assistant message and build data to the database
         try {
@@ -539,9 +617,9 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
               conversation_id: activeConvId,
               message_id: savedMessage.id,
               label: newVersion.label,
-              html: finalCode.html,
-              css: finalCode.css,
-              js: finalCode.js,
+              html: resolvedCode.html,
+              css: resolvedCode.css,
+              js: resolvedCode.js,
               project_id: currentProjectId,
             }).select().single();
 
@@ -549,7 +627,7 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
               setLastBuildId(build.id);
 
               // Generate and save thumbnail in background
-              generateThumbnail(finalCode.html, finalCode.css, finalCode.js).then(async (thumbnailUrl) => {
+              generateThumbnail(resolvedCode.html, resolvedCode.css, resolvedCode.js).then(async (thumbnailUrl) => {
                 if (thumbnailUrl) {
                   await supabase
                     .from('builds')
@@ -597,7 +675,7 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
       // Remove placeholder message on failure
       setMessages(prev => prev.filter(m => m.id !== assistantId));
     }
-  }, [conversationId, messages, currentCode, currentProjectId, isAuthenticated, wallet, deductCredit, createNewConversation]);
+  }, [conversationId, messages, currentCode, currentProject, currentProjectId, isAuthenticated, wallet, deductCredit, createNewConversation]);
 
   const selectVersion = useCallback((versionId: string) => {
     const version = versions.find(v => v.id === versionId);
@@ -679,8 +757,8 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
     setMessages([]);
     setVersions([]);
     setCurrentVersion(null);
-    setCurrentCode(null);
-    setCurrentProject(null);
+    setCurrentProject(projectTemplate);
+    setCurrentCode(projectToCodeOutput(projectTemplate));
     setCurrentProjectId(null);
     setLastBuildId(null);
     initializedRef.current = false;
@@ -691,7 +769,7 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
     
     toast({
       title: "Chat limpiado",
-      description: "Se ha iniciado una nueva conversación.",
+      description: "Se ha iniciado una nueva conversación con la plantilla base.",
     });
   }, [clearState, user, createNewConversation]);
 
