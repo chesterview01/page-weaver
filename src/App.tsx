@@ -58,7 +58,7 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 
 const AppRoutes = () => {
   const urlParams = new URLSearchParams(window.location.search);
-  const isFullscreenPreview = urlParams.get('preview-fullscreen') === 'true';
+  const isFullscreenPreview = urlParams.get('preview-fullscreen') === 'true' || urlParams.get('fullscreen') === 'true';
 
   if (isFullscreenPreview) {
     return <PreviewFullscreen />;

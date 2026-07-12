@@ -134,3 +134,13 @@
     opacity: 0.5;
   }
 }
+
+/* Force Sandpack layouts and iframes to full vertical size */
+.sp-wrapper, .sp-layout, .sp-stack, .sp-preview-container, .sp-preview-iframe {
+  height: 100% !important;
+  min-height: 100% !important;
+  flex: 1 1 auto !important;
+}
+.sp-preview-iframe {
+  display: block !important;
+}
