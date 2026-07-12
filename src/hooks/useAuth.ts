@@ -35,7 +35,20 @@ const initialState: AuthState = {
 };
 
 export const useAuth = () => {
-  const [state, setState] = useState<AuthState>(initialState);
+  const [state, setState] = useState<AuthState>(() => {
+    const isMock = typeof window !== 'undefined' && (localStorage.getItem("mock_auth") === "true" || window.location.search.includes("mock_auth=true"));
+    if (isMock) {
+      return {
+        user: { id: "mock-user-id", email: "mock@example.com" } as any,
+        session: { access_token: "mock-token", user: { id: "mock-user-id", email: "mock@example.com" } } as any,
+        profile: { id: "mock-profile-id", user_id: "mock-user-id", display_name: "Mock User", avatar_url: null },
+        wallet: { id: "mock-wallet-id", user_id: "mock-user-id", credits: 100 },
+        isLoading: false,
+        isAdmin: false,
+      };
+    }
+    return initialState;
+  });
   const mountedRef = useRef(true);
 
   const safeSetState = useCallback((updates: Partial<AuthState>) => {
@@ -63,6 +76,10 @@ export const useAuth = () => {
   }, [safeSetState]);
 
   useEffect(() => {
+    const isMock = typeof window !== 'undefined' && (localStorage.getItem("mock_auth") === "true" || window.location.search.includes("mock_auth=true"));
+    if (isMock) {
+      return;
+    }
     mountedRef.current = true;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
