@@ -8,20 +8,22 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { downloadAsZip } from '@/utils/exportProject';
-import { CodeOutput } from '@/types/chat';
+import { CodeOutput, ProjectOutput } from '@/types/chat';
 import { toast } from '@/hooks/use-toast';
 
 interface ExportDropdownProps {
   code: CodeOutput | null;
+  project?: ProjectOutput | null;
   projectName?: string;
 }
 
-const ExportDropdown: React.FC<ExportDropdownProps> = ({ code, projectName = 'mi-proyecto' }) => {
-  if (!code) return null;
+const ExportDropdown: React.FC<ExportDropdownProps> = ({ code, project, projectName = 'mi-proyecto' }) => {
+  const hasContent = !!(project && project.files.length > 0) || !!code;
+  if (!hasContent) return null;
 
   const handleDownloadZip = async () => {
     try {
-      await downloadAsZip(code, projectName);
+      await downloadAsZip(code || { html: '', css: '', js: '' }, projectName, project);
       toast({
         title: "Descarga iniciada",
         description: "Tu proyecto se está descargando como ZIP.",

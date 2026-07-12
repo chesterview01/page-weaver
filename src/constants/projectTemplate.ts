@@ -115,9 +115,19 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     },
     {
       path: 'src/App.tsx',
-      content: `import React from 'react';
+      content: `import React, { useEffect } from 'react';
 
 function App() {
+  useEffect(() => {
+    // Dynamically inject Tailwind CSS CDN for guaranteed styling in all preview sandboxes
+    if (!document.getElementById('tailwind-cdn')) {
+      const script = document.createElement('script');
+      script.id = 'tailwind-cdn';
+      script.src = 'https://cdn.tailwindcss.com';
+      document.head.appendChild(script);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center text-3xl font-bold">
       Chester Code Ready

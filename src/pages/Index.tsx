@@ -77,8 +77,9 @@ const Index = () => {
       
       <Header 
         onOpenPreview={handleOpenPreview} 
-        hasCode={!!currentCode} 
+        hasCode={!!currentCode || !!(currentProject && currentProject.files.length > 0)}
         currentCode={currentCode}
+        currentProject={currentProject}
         onNewProject={clearChat}
       />
       

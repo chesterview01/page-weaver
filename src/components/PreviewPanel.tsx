@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Monitor, Smartphone, Tablet, ExternalLink, RefreshCw, FolderTree, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { CodeOutput, ProjectOutput, ProjectFile } from '@/types/chat';
+import { ProjectOutput, ProjectFile } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import FileExplorerEnhanced from './FileExplorerEnhanced';
 import CodeEditorPanel from './CodeEditorPanel';
@@ -17,7 +17,6 @@ import {
 } from "@codesandbox/sandpack-react";
 
 interface PreviewPanelProps {
-  code: CodeOutput | null;
   project?: ProjectOutput | null;
   onProjectChange?: (project: ProjectOutput) => void;
 }
@@ -31,8 +30,8 @@ const viewportClasses: Record<ViewportSize, string> = {
   mobile: 'w-[375px]',
 };
 
-// Inner component to safely consume Sandpack context if active
-const PreviewPanelInner: React.FC<PreviewPanelProps & {
+// Inner component to safely consume Sandpack context
+const PreviewPanelInner: React.FC<{
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   viewport: ViewportSize;
@@ -40,19 +39,13 @@ const PreviewPanelInner: React.FC<PreviewPanelProps & {
   selectedFile: string | null;
   setSelectedFile: (file: string | null) => void;
   project: ProjectOutput | null;
-  iframeSrc: string | null;
-  refreshKey: number;
-  triggerRefresh: () => void;
   hasProject: boolean;
   selectedFileContent: ProjectFile | null | undefined;
   handleUpdateFile: (content: string) => void;
   handleCreateFile: (path: string) => void;
   handleCreateFolder: (path: string) => void;
   handleDeleteFile: (path: string) => void;
-  isSandpackActive: boolean;
 }> = ({
-  code,
-  onProjectChange,
   viewMode,
   setViewMode,
   viewport,
@@ -60,43 +53,29 @@ const PreviewPanelInner: React.FC<PreviewPanelProps & {
   selectedFile,
   setSelectedFile,
   project,
-  iframeSrc,
-  refreshKey,
-  triggerRefresh,
   hasProject,
   selectedFileContent,
   handleUpdateFile,
   handleCreateFile,
   handleCreateFolder,
   handleDeleteFile,
-  isSandpackActive,
 }) => {
-  let sandpackInstance: { runSandbox: () => void; openInNewTab: () => void } | null = null;
-  try {
-    const context = useSandpack() as unknown as { sandpack: { runSandbox: () => void; openInNewTab: () => void } };
-    sandpackInstance = context.sandpack;
-  } catch (e) {
-    // Not running inside SandpackProvider (fallback mode)
-  }
+  const { sandpack } = useSandpack();
 
   const handleRefresh = () => {
-    if (sandpackInstance) {
-      sandpackInstance.runSandbox();
-    } else {
-      triggerRefresh();
+    if (sandpack) {
+      sandpack.runSandbox();
     }
   };
 
   const handleOpenExternal = () => {
-    if (sandpackInstance) {
-      sandpackInstance.openInNewTab();
-    } else if (iframeSrc) {
-      window.open(iframeSrc, '_blank');
+    if (sandpack) {
+      sandpack.openInNewTab();
     }
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-slate-950 text-white">
       {/* Toolbar */}
       <div className="flex items-center justify-between p-3 border-b border-border bg-card/20">
         <div className="flex items-center gap-1">
@@ -172,7 +151,6 @@ const PreviewPanelInner: React.FC<PreviewPanelProps & {
                 size="icon"
                 className="h-8 w-8"
                 onClick={handleOpenExternal}
-                disabled={!isSandpackActive && !iframeSrc}
                 title="Abrir en pestaña nueva"
               >
                 <ExternalLink className="w-4 h-4" />
@@ -191,36 +169,14 @@ const PreviewPanelInner: React.FC<PreviewPanelProps & {
               viewportClasses[viewport]
             )}
           >
-            {isSandpackActive ? (
-              <div className="w-full h-full relative bg-slate-900">
-                <SandpackPreview
-                  showNavigator={false}
-                  showRefreshButton={false}
-                  showOpenInCodeSandbox={false}
-                  style={{ height: '100%', width: '100%' }}
-                />
-              </div>
-            ) : iframeSrc ? (
-              <iframe
-                key={refreshKey}
-                src={iframeSrc}
-                className="w-full h-full bg-white border-0"
-                title="Preview"
-                sandbox="allow-scripts allow-same-origin"
+            <div className="w-full h-full relative bg-slate-900">
+              <SandpackPreview
+                showNavigator={false}
+                showRefreshButton={false}
+                showOpenInCodeSandbox={false}
+                style={{ height: '100%', width: '100%' }}
               />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-card text-center p-8">
-                <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center mb-4">
-                  <Monitor className="w-10 h-10 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-semibold text-foreground mb-2">
-                  Vista previa
-                </h3>
-                <p className="text-sm text-muted-foreground max-w-xs">
-                  Tu página web aparecerá aquí cuando la IA genere el código
-                </p>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       ) : (
@@ -275,10 +231,8 @@ const PreviewPanelInner: React.FC<PreviewPanelProps & {
   );
 };
 
-const PreviewPanel: React.FC<PreviewPanelProps> = (props) => {
-  const { code, project: initialProject, onProjectChange } = props;
+const PreviewPanel: React.FC<PreviewPanelProps> = ({ project: initialProject, onProjectChange }) => {
   const [viewport, setViewport] = useState<ViewportSize>('desktop');
-  const [refreshKey, setRefreshKey] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>('preview');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [project, setProject] = useState<ProjectOutput | null>(initialProject || null);
@@ -290,37 +244,12 @@ const PreviewPanel: React.FC<PreviewPanelProps> = (props) => {
     }
   }, [initialProject]);
 
-  const iframeSrc = useMemo(() => {
-    if (!code) return null;
-
-    const htmlContent = `
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, sans-serif; }
-    ${code.css}
-  </style>
-</head>
-<body>
-  ${code.html}
-  <script>${code.js}</script>
-</body>
-</html>`;
-
-    return `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`;
-  }, [code]);
-
   const selectedFileContent = useMemo(() => {
     if (!project || !selectedFile) return null;
     return project.files.find(f => f.path === selectedFile);
   }, [project, selectedFile]);
 
   const hasProject = !!(project && project.files.length > 0);
-  const isSandpackActive = hasProject;
 
   // File operations
   const handleUpdateFile = useCallback((content: string) => {
@@ -401,73 +330,64 @@ const PreviewPanel: React.FC<PreviewPanelProps> = (props) => {
     project.files.forEach(file => {
       const path = file.path.startsWith('/') ? file.path : `/${file.path}`;
       filesObj[path] = file.content;
+
+      // Map index.html to /public/index.html for Sandpack react-ts (create-react-app) compatibility
+      if (path === '/index.html') {
+        filesObj['/public/index.html'] = file.content;
+      }
+      // Map main.tsx to index.tsx for Sandpack react-ts (create-react-app) compatibility
+      if (path === '/src/main.tsx') {
+        filesObj['/src/index.tsx'] = file.content;
+      }
     });
     return filesObj;
   }, [project]);
 
-  const triggerRefresh = useCallback(() => {
-    setRefreshKey(k => k + 1);
-  }, []);
-
-  if (isSandpackActive) {
+  if (!hasProject) {
     return (
-      <SandpackProvider
-        files={sandpackFiles}
-        template="react-ts"
-        theme="dark"
-        options={{
-          initMode: "immediate",
-          recompileMode: "immediate",
-          classes: {
-            "sp-wrapper": "h-full w-full bg-slate-950",
-          }
-        }}
-      >
-        <PreviewPanelInner
-          {...props}
-          viewMode={viewMode}
-          setViewMode={setViewMode}
-          viewport={viewport}
-          setViewport={setViewport}
-          selectedFile={selectedFile}
-          setSelectedFile={setSelectedFile}
-          project={project}
-          iframeSrc={iframeSrc}
-          refreshKey={refreshKey}
-          triggerRefresh={triggerRefresh}
-          hasProject={hasProject}
-          selectedFileContent={selectedFileContent}
-          handleUpdateFile={handleUpdateFile}
-          handleCreateFile={handleCreateFile}
-          handleCreateFolder={handleCreateFolder}
-          handleDeleteFile={handleDeleteFile}
-          isSandpackActive={isSandpackActive}
-        />
-      </SandpackProvider>
+      <div className="w-full h-full flex flex-col items-center justify-center bg-card text-center p-8 text-white">
+        <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center mb-4">
+          <Monitor className="w-10 h-10 text-muted-foreground" />
+        </div>
+        <h3 className="text-lg font-semibold text-foreground mb-2">
+          Vista previa
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-xs">
+          Tu proyecto aparecerá aquí cuando la IA genere el código
+        </p>
+      </div>
     );
   }
 
   return (
-    <PreviewPanelInner
-      {...props}
-      viewMode={viewMode}
-      setViewMode={setViewMode}
-      viewport={viewport}
-      setViewport={setViewport}
-      selectedFile={selectedFile}
-      setSelectedFile={setSelectedFile}
-      project={project}
-      iframeSrc={iframeSrc}
-      refreshKey={refreshKey}
-      triggerRefresh={triggerRefresh}
-      hasProject={hasProject}
-      selectedFileContent={selectedFileContent}
-      handleUpdateFile={handleUpdateFile}
-      handleCreateFile={handleCreateFile}
-      handleCreateFolder={handleCreateFolder}
-      handleDeleteFile={handleDeleteFile}
-      isSandpackActive={isSandpackActive}
-    />
+    <SandpackProvider
+      files={sandpackFiles}
+      template="react-ts"
+      theme="dark"
+      options={{
+        initMode: "immediate",
+        recompileMode: "immediate",
+        classes: {
+          "sp-wrapper": "h-full w-full bg-slate-950",
+        }
+      }}
+    >
+      <PreviewPanelInner
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        viewport={viewport}
+        setViewport={setViewport}
+        selectedFile={selectedFile}
+        setSelectedFile={setSelectedFile}
+        project={project}
+        hasProject={hasProject}
+        selectedFileContent={selectedFileContent}
+        handleUpdateFile={handleUpdateFile}
+        handleCreateFile={handleCreateFile}
+        handleCreateFolder={handleCreateFolder}
+        handleDeleteFile={handleDeleteFile}
+      />
+    </SandpackProvider>
   );
 };
 

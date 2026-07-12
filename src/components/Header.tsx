@@ -18,16 +18,27 @@ import RecentProjects from '@/components/RecentProjects';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { CodeOutput } from '@/types/chat';
 
+import { ProjectOutput } from '@/types/chat';
+
 interface HeaderProps {
   onOpenPreview?: () => void;
   hasCode?: boolean;
   currentCode?: CodeOutput | null;
+  currentProject?: ProjectOutput | null;
   projectName?: string;
   projectId?: string | null;
   onNewProject?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode, currentCode, projectName, projectId, onNewProject }) => {
+const Header: React.FC<HeaderProps> = ({
+  onOpenPreview,
+  hasCode,
+  currentCode,
+  currentProject,
+  projectName,
+  projectId,
+  onNewProject
+}) => {
   const navigate = useNavigate();
   const { user, profile, wallet, isAuthenticated, signOut, isLoading, isAdmin } = useAuthContext();
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -77,12 +88,16 @@ const Header: React.FC<HeaderProps> = ({ onOpenPreview, hasCode, currentCode, pr
           )}
 
           {/* GitHub Connector */}
-          {isAuthenticated && currentCode && (
-            <GitHubConnector currentCode={currentCode} />
+          {isAuthenticated && (currentCode || (currentProject && currentProject.files.length > 0)) && (
+            <GitHubConnector currentCode={currentCode} currentProject={currentProject} />
           )}
 
           {/* Export dropdown */}
-          <ExportDropdown code={currentCode || null} projectName={projectName} />
+          <ExportDropdown
+            code={currentCode || null}
+            project={currentProject}
+            projectName={projectName || currentProject?.projectName}
+          />
 
           {/* Publish button */}
           {isAuthenticated && hasCode && (
