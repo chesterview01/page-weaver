@@ -99,7 +99,7 @@ const PreviewFullscreen: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-screen bg-slate-950 overflow-hidden flex flex-col">
+    <div className="h-screen w-screen bg-slate-950 overflow-hidden flex flex-col flex-1 min-h-0">
       <SandpackProvider
         files={sandpackFiles}
         template="react-ts"
@@ -108,16 +108,16 @@ const PreviewFullscreen: React.FC = () => {
           initMode: "immediate",
           recompileMode: "immediate",
           classes: {
-            "sp-wrapper": "h-full w-full bg-slate-950",
+            "sp-wrapper": "h-full w-full bg-slate-950 flex flex-col flex-1 min-h-0",
           }
         }}
       >
-        <div className="w-full h-full relative bg-slate-900 flex-1">
+        <div className="w-full h-full relative bg-slate-900 flex-1 min-h-0">
           <SandpackPreview
             showNavigator={false}
             showRefreshButton={false}
             showOpenInCodeSandbox={false}
-            style={{ height: '100%', width: '100%' }}
+            style={{ height: '100vh', width: '100%', minHeight: '100vh' }}
           />
         </div>
       </SandpackProvider>

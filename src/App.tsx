@@ -56,39 +56,48 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-const AppRoutes = () => (
-  <Routes>
-    <Route path="/" element={
-      <PublicRoute>
-        <Landing />
-      </PublicRoute>
-    } />
-    <Route path="/auth/callback" element={<AuthCallback />} />
-    <Route path="/login" element={
-      <PublicRoute>
-        <Login />
-      </PublicRoute>
-    } />
-    <Route path="/app" element={
-      <ProtectedRoute>
-        <Index />
-      </ProtectedRoute>
-    } />
-    <Route path="/settings" element={
-      <ProtectedRoute>
-        <Settings />
-      </ProtectedRoute>
-    } />
-    <Route path="/pricing" element={<Pricing />} />
-    <Route path="/admin" element={
-      <ProtectedRoute>
-        <Admin />
-      </ProtectedRoute>
-    } />
-    <Route path="/preview-fullscreen" element={<PreviewFullscreen />} />
-    <Route path="*" element={<NotFound />} />
-  </Routes>
-);
+const AppRoutes = () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const isFullscreenPreview = urlParams.get('preview-fullscreen') === 'true';
+
+  if (isFullscreenPreview) {
+    return <PreviewFullscreen />;
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={
+        <PublicRoute>
+          <Landing />
+        </PublicRoute>
+      } />
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/login" element={
+        <PublicRoute>
+          <Login />
+        </PublicRoute>
+      } />
+      <Route path="/app" element={
+        <ProtectedRoute>
+          <Index />
+        </ProtectedRoute>
+      } />
+      <Route path="/settings" element={
+        <ProtectedRoute>
+          <Settings />
+        </ProtectedRoute>
+      } />
+      <Route path="/pricing" element={<Pricing />} />
+      <Route path="/admin" element={
+        <ProtectedRoute>
+          <Admin />
+        </ProtectedRoute>
+      } />
+      <Route path="/preview-fullscreen" element={<PreviewFullscreen />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

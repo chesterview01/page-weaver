@@ -75,7 +75,7 @@ const PreviewPanelInner: React.FC<{
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-white">
+    <div className="flex flex-col h-full w-full flex-1 min-h-0 bg-slate-950 text-white">
       {/* Toolbar */}
       <div className="flex items-center justify-between p-3 border-b border-border bg-card/20">
         <div className="flex items-center gap-1">
@@ -162,19 +162,19 @@ const PreviewPanelInner: React.FC<{
 
       {/* Content Area */}
       {viewMode === 'preview' ? (
-        <div className="flex-1 min-h-0 bg-muted/30 p-4 flex flex-col">
+        <div className="flex-1 min-h-0 bg-muted/30 p-4 flex flex-col h-full">
           <div
             className={cn(
-              'mx-auto h-full w-full transition-all duration-300 rounded-lg overflow-hidden shadow-card bg-slate-950 flex flex-col',
+              'mx-auto h-full w-full transition-all duration-300 rounded-lg overflow-hidden shadow-card bg-slate-950 flex flex-col flex-1 min-h-0',
               viewportClasses[viewport]
             )}
           >
-            <div className="w-full h-full flex-1 relative bg-slate-900">
+            <div className="w-full h-full flex-1 relative bg-slate-900 min-h-0">
               <SandpackPreview
                 showNavigator={false}
                 showRefreshButton={false}
                 showOpenInCodeSandbox={false}
-                style={{ height: '100%', width: '100%' }}
+                style={{ height: '100%', width: '100%', minHeight: '100%' }}
               />
             </div>
           </div>
@@ -360,34 +360,36 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ project: initialProject, on
   }
 
   return (
-    <SandpackProvider
-      files={sandpackFiles}
-      template="react-ts"
-      theme="dark"
-      options={{
-        initMode: "immediate",
-        recompileMode: "immediate",
-        classes: {
-          "sp-wrapper": "h-full w-full bg-slate-950",
-        }
-      }}
-    >
-      <PreviewPanelInner
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        viewport={viewport}
-        setViewport={setViewport}
-        selectedFile={selectedFile}
-        setSelectedFile={setSelectedFile}
-        project={project}
-        hasProject={hasProject}
-        selectedFileContent={selectedFileContent}
-        handleUpdateFile={handleUpdateFile}
-        handleCreateFile={handleCreateFile}
-        handleCreateFolder={handleCreateFolder}
-        handleDeleteFile={handleDeleteFile}
-      />
-    </SandpackProvider>
+    <div className="w-full h-full flex flex-col flex-1 min-h-0">
+      <SandpackProvider
+        files={sandpackFiles}
+        template="react-ts"
+        theme="dark"
+        options={{
+          initMode: "immediate",
+          recompileMode: "immediate",
+          classes: {
+            "sp-wrapper": "h-full w-full bg-slate-950 flex flex-col flex-1 min-h-0",
+          }
+        }}
+      >
+        <PreviewPanelInner
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          viewport={viewport}
+          setViewport={setViewport}
+          selectedFile={selectedFile}
+          setSelectedFile={setSelectedFile}
+          project={project}
+          hasProject={hasProject}
+          selectedFileContent={selectedFileContent}
+          handleUpdateFile={handleUpdateFile}
+          handleCreateFile={handleCreateFile}
+          handleCreateFolder={handleCreateFolder}
+          handleDeleteFile={handleDeleteFile}
+        />
+      </SandpackProvider>
+    </div>
   );
 };
 
