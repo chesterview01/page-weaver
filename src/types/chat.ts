@@ -37,3 +37,13 @@ export interface ChatState {
   currentVersion: string | null;
   isLoading: boolean;
 }
+
+export type ChatMode = 'quick' | 'architect';
+
+export type ChatStepStatus = 'pending' | 'loading' | 'completed' | 'error';
+
+export interface ChatStep {
+  id: string;
+  label: string;
+  status: ChatStepStatus;
+}
