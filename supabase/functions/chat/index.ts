@@ -1,15 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Dynamic CORS headers helper to cleanly handle dynamic origins like Vercel preview subdomains
-const getCorsHeaders = (req: Request) => {
-  const origin = req.headers.get("origin") || "*";
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
-    "Access-Control-Max-Age": "86400",
-  };
+// Static CORS headers defined specifically to cleanly handle all environments and bypass preflight blockages
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
+  "Access-Control-Max-Age": "86400",
 };
 
 // Different prompts based on narrative style
@@ -87,9 +84,76 @@ IMPORTANT:
   return baseInstructions;
 };
 
-serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
+// Create a TransformStream to convert Gemini native SSE format to standard OpenAI-compatible SSE format
+const createGeminiToOpenAiTransformer = () => {
+  let buffer = "";
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
 
+  return new TransformStream({
+    transform(chunk, controller) {
+      buffer += decoder.decode(chunk, { stream: true });
+      let lineIndex;
+      while ((lineIndex = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, lineIndex).trim();
+        buffer = buffer.slice(lineIndex + 1);
+
+        if (!line) continue;
+        if (line.startsWith("data: ")) {
+          const jsonStr = line.slice(6).trim();
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              const openAiChunk = {
+                choices: [
+                  {
+                    delta: {
+                      content: text
+                    }
+                  }
+                ]
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(openAiChunk)}\n\n`));
+            }
+          } catch (e) {
+            console.warn("Could not parse Gemini SSE line:", line, e);
+          }
+        }
+      }
+    },
+    flush(controller) {
+      if (buffer.trim()) {
+        const line = buffer.trim();
+        if (line.startsWith("data: ")) {
+          const jsonStr = line.slice(6).trim();
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              const openAiChunk = {
+                choices: [
+                  {
+                    delta: {
+                      content: text
+                    }
+                  }
+                ]
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(openAiChunk)}\n\n`));
+            }
+          } catch (e) {
+            console.warn("Could not parse Gemini SSE line in flush:", line, e);
+          }
+        }
+      }
+      // Send standard [DONE] signal to the frontend
+      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+    }
+  });
+};
+
+serve(async (req) => {
   // OPTIONS preflight request must return immediately with proper headers
   if (req.method === "OPTIONS") {
     return new Response("ok", {
@@ -108,59 +172,163 @@ serve(async (req) => {
 
     const { messages = [], narrativeStyle = 'detailed', customApiUrl, customApiKey, useCustomAI } = body;
 
-    // Default: Lovable AI Gateway
-    let apiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
-    let apiKey = Deno.env.get("LOVABLE_API_KEY");
-    let model: string | undefined = "google/gemini-3-flash-preview";
+    // Define selected model configuration
+    const SELECTED_MODEL = "gemini-3.1-flash-lite";
+    const modelToUse = body.model || SELECTED_MODEL;
 
-    // Admin-controlled AI dual system: read ai_provider_config via service role to bypass RLS safely
-    try {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL");
-      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      if (supabaseUrl && serviceKey) {
-        const admin = createClient(supabaseUrl, serviceKey);
-        const { data: cfg, error: cfgError } = await admin
-          .from("ai_provider_config")
-          .select("provider, gemini_api_key")
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+    // Determine credentials and provider pathways
+    let apiKey = Deno.env.get("GOOGLE_API_KEY");
+    let provider: "gemini" | "lovable" | "custom" = apiKey ? "gemini" : "lovable";
 
-        if (cfgError) {
-          console.error("ai_provider_config query failed:", cfgError);
-        } else if (cfg?.provider === "gemini" && cfg.gemini_api_key) {
-          apiUrl = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-          apiKey = cfg.gemini_api_key;
-          model = "gemini-2.5-flash";
-        }
-      } else {
-        console.warn("Supabase database connection parameters are missing in env");
-      }
-    } catch (e) {
-      console.warn("ai_provider_config read threw an exception, using default provider:", e);
-    }
-
-    // User-level custom API override still wins
-    if (useCustomAI && customApiUrl && customApiKey) {
-      apiUrl = customApiUrl;
-      apiKey = customApiKey;
-      model = undefined;
-    }
-
+    // If GOOGLE_API_KEY env is not found, check fallback database config
     if (!apiKey) {
-      throw new Error("API key is not configured");
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL");
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        if (supabaseUrl && serviceKey) {
+          const admin = createClient(supabaseUrl, serviceKey);
+          const { data: cfg, error: cfgError } = await admin
+            .from("ai_provider_config")
+            .select("provider, gemini_api_key")
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (cfgError) {
+            console.error("ai_provider_config query failed:", cfgError);
+          } else if (cfg?.provider === "gemini" && cfg.gemini_api_key) {
+            apiKey = cfg.gemini_api_key;
+            provider = "gemini";
+          }
+        } else {
+          console.warn("Supabase database connection parameters are missing in env");
+        }
+      } catch (e) {
+        console.warn("ai_provider_config read threw an exception, using default provider:", e);
+      }
+    }
+
+    // User-level custom API override still wins and utilizes custom provider
+    if (useCustomAI && customApiUrl && customApiKey) {
+      provider = "custom";
     }
 
     const systemPrompt = getSystemPrompt(narrativeStyle);
 
-    const response = await fetch(apiUrl, {
+    // 1. Custom Provider Flow
+    if (provider === "custom") {
+      const response = await fetch(customApiUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${customApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...messages,
+          ],
+          stream: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return new Response(JSON.stringify({ error: `Custom AI error: ${response.status} ${errorText}` }), {
+          status: response.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(response.body, {
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      });
+    }
+
+    // 2. Native Gemini API Flow
+    if (provider === "gemini") {
+      if (!apiKey) {
+        throw new Error("Gemini API key is not configured");
+      }
+
+      // Convert OpenAI messaging format to Gemini contents structure
+      let systemInstructionText = systemPrompt;
+      const contents: any[] = [];
+
+      for (const msg of messages) {
+        if (msg.role === "system") {
+          systemInstructionText = msg.content;
+          continue;
+        }
+        const role = msg.role === "assistant" ? "model" : "user";
+        const lastContent = contents[contents.length - 1];
+        if (lastContent && lastContent.role === role) {
+          lastContent.parts[0].text += "\n" + msg.content;
+        } else {
+          contents.push({
+            role,
+            parts: [{ text: msg.content }]
+          });
+        }
+      }
+
+      // Ensure we have at least one user content to satisfy Gemini requirements
+      if (contents.length === 0) {
+        contents.push({
+          role: "user",
+          parts: [{ text: "Hello" }]
+        });
+      }
+
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:streamGenerateContent?key=${apiKey}&alt=sse`;
+
+      const response = await fetch(geminiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents,
+          systemInstruction: {
+            parts: [{ text: systemInstructionText }]
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Gemini API error:", response.status, errorText);
+        return new Response(JSON.stringify({ error: `Gemini API error: ${response.status} ${errorText}` }), {
+          status: response.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!response.body) {
+        throw new Error("Gemini response body is null");
+      }
+
+      const transformedStream = response.body.pipeThrough(createGeminiToOpenAiTransformer());
+
+      return new Response(transformedStream, {
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      });
+    }
+
+    // 3. Fallback: Lovable Gateway Provider Flow
+    const lovApiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovApiKey) {
+      throw new Error("Lovable API key is not configured");
+    }
+
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${lovApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model,
+        model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
           ...messages,
