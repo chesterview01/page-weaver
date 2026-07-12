@@ -298,8 +298,8 @@ export const useChat = () => {
     }
   };
 
-  const createNewConversation = async () => {
-    if (!user) return;
+  const createNewConversation = async (): Promise<string | null> => {
+    if (!user) return null;
     
     try {
       const { data: conv, error } = await supabase
@@ -310,8 +310,10 @@ export const useChat = () => {
 
       if (error) throw error;
       setConversationId(conv.id);
+      return conv.id;
     } catch (error) {
       console.error('Error creating conversation:', error);
+      return null;
     }
   };
 
@@ -337,10 +339,16 @@ export const useChat = () => {
     const credited = await deductCredit(1, content.substring(0, 50));
     if (!credited) return;
 
-    if (!conversationId) {
+    // Ensure we have a valid conversation ID synchronously to avoid race conditions (Error 409)
+    let activeConvId = conversationId;
+    if (!activeConvId) {
+      activeConvId = await createNewConversation();
+    }
+
+    if (!activeConvId) {
       toast({
         title: "Error",
-        description: "Conversación no inicializada. Por favor, recarga la página.",
+        description: "No se pudo inicializar la conversación. Por favor, recarga la página.",
         variant: "destructive",
       });
       return;
@@ -359,7 +367,7 @@ export const useChat = () => {
     // Save user message to database
     try {
       await supabase.from('messages').insert({
-        conversation_id: conversationId,
+        conversation_id: activeConvId,
         role: 'user',
         content,
       });
@@ -367,8 +375,8 @@ export const useChat = () => {
       console.error('Error saving user message:', error);
     }
 
-    // Construct a unified, rich prompt incorporating system rules, code context, and chat history for the RPC
-    let promptText = `Eres un asistente experto en desarrollo web que genera proyectos web completos con su estructura de archivos correcta.
+    // Construct unified rich chat history including system instructions, current code context, and history
+    let combinedSystemPrompt = `Eres un asistente experto en desarrollo web que genera proyectos web completos con su estructura de archivos correcta.
 
 REGLAS DE DISEÑO:
 - Genera código moderno, responsive y visualmente atractivo.
@@ -408,21 +416,30 @@ PART 2 - PROJECT STRUCTURE: Justo después, debes incluir un bloque JSON de cód
 
 `;
 
-    // Include current code context in the prompt
+    // Include current code context in the system prompt if it exists
     if (currentCode && (currentCode.html || currentCode.css || currentCode.js)) {
-      promptText += `Código actual del proyecto:\n\nHTML:\n${currentCode.html}\n\nCSS:\n${currentCode.css}\n\nJS:\n${currentCode.js}\n\n---\n\n`;
+      combinedSystemPrompt += `\n\nCódigo actual del proyecto para que continúes o modifiques sobre él:\n\nHTML:\n${currentCode.html}\n\nCSS:\n${currentCode.css}\n\nJS:\n${currentCode.js}\n`;
     }
 
-    // Include recent history context (last 4 messages)
-    if (messages.length > 0) {
-      promptText += "Conversación reciente:\n";
-      messages.slice(-4).forEach(m => {
-        promptText += `${m.role === 'user' ? 'Usuario' : 'Asistente'}: ${m.content}\n`;
+    const chatHistory: any[] = [
+      { role: 'system', content: combinedSystemPrompt }
+    ];
+
+    // Include prior chat history (up to last 15 messages for optimal memory and context length)
+    const historyLimit = 15;
+    const recentMessages = messages.slice(-historyLimit);
+    recentMessages.forEach(m => {
+      chatHistory.push({
+        role: m.role,
+        content: m.content
       });
-      promptText += "\n---\n\n";
-    }
+    });
 
-    promptText += `Nueva solicitud del usuario:\n${content}`;
+    // Append the latest user query
+    chatHistory.push({
+      role: 'user',
+      content: content
+    });
 
     const assistantId = `msg-${Date.now()}-ai`;
 
@@ -435,9 +452,9 @@ PART 2 - PROJECT STRUCTURE: Justo después, debes incluir un bloque JSON de cód
     }]);
 
     try {
-      // Call the secure database RPC 'chat_with_gemini'
+      // Call the secure database RPC 'chat_with_gemini' passing the full chat history
       const { data, error: rpcError } = await supabase.rpc('chat_with_gemini', {
-        prompt_text: promptText,
+        chat_history: chatHistory,
         model_name: 'gemini-3.1-flash-lite'
       });
 
@@ -499,7 +516,7 @@ PART 2 - PROJECT STRUCTURE: Justo después, debes incluir un bloque JSON de cód
           const { data: savedMessage } = await supabase
             .from('messages')
             .insert({
-              conversation_id: conversationId,
+              conversation_id: activeConvId,
               role: 'assistant',
               content: assistantContent,
             })
@@ -508,7 +525,7 @@ PART 2 - PROJECT STRUCTURE: Justo después, debes incluir un bloque JSON de cód
 
           if (savedMessage) {
             const { data: build } = await supabase.from('builds').insert({
-              conversation_id: conversationId,
+              conversation_id: activeConvId,
               message_id: savedMessage.id,
               label: newVersion.label,
               html: finalCode.html,
@@ -550,7 +567,7 @@ PART 2 - PROJECT STRUCTURE: Justo después, debes incluir un bloque JSON de cód
         // Save assistant message without code
         try {
           await supabase.from('messages').insert({
-            conversation_id: conversationId,
+            conversation_id: activeConvId,
             role: 'assistant',
             content: assistantContent,
           });
@@ -569,7 +586,7 @@ PART 2 - PROJECT STRUCTURE: Justo después, debes incluir un bloque JSON de cód
       // Remove placeholder message on failure
       setMessages(prev => prev.filter(m => m.id !== assistantId));
     }
-  }, [conversationId, messages, currentCode, currentProjectId, isAuthenticated, wallet, deductCredit]);
+  }, [conversationId, messages, currentCode, currentProjectId, isAuthenticated, wallet, deductCredit, createNewConversation]);
 
   const selectVersion = useCallback((versionId: string) => {
     const version = versions.find(v => v.id === versionId);
@@ -665,7 +682,7 @@ PART 2 - PROJECT STRUCTURE: Justo después, debes incluir un bloque JSON de cód
       title: "Chat limpiado",
       description: "Se ha iniciado una nueva conversación.",
     });
-  }, [clearState, user]);
+  }, [clearState, user, createNewConversation]);
 
   return {
     messages,
