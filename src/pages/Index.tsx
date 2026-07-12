@@ -117,7 +117,7 @@ const Index = () => {
               />
             </div>
           </div>
-          <div className="flex-1">
+          <div className="flex-1 h-full min-h-0 flex flex-col">
             <PreviewPanel 
               code={currentCode} 
               project={currentProject} 
