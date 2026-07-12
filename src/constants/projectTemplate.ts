@@ -93,6 +93,12 @@ export default {
     <title>Chester Code Project</title>
     <!-- Tailwind CDN for direct high-performance preview fallback inside some sandboxes -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: { extend: {} }
+      }
+    </script>
   </head>
   <body class="bg-slate-950 text-white">
     <div id="root"></div>

@@ -104,6 +104,13 @@ const PreviewFullscreen: React.FC = () => {
         files={sandpackFiles}
         template="react-ts"
         theme="dark"
+        customSetup={{
+          dependencies: {
+            "lucide-react": "^0.263.1",
+            "tailwindcss": "^3.3.0",
+            "recharts": "^2.7.2"
+          }
+        }}
         options={{
           initMode: "immediate",
           recompileMode: "immediate",
