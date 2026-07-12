@@ -1,19 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, User, Bot } from 'lucide-react';
+import { Send, Sparkles, User, Bot, Zap, Cpu, CheckCircle2, Circle, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Message } from '@/types/chat';
+import { Message, ChatMode, ChatStep } from '@/types/chat';
 import { cn } from '@/lib/utils';
+
 interface ChatPanelProps {
   messages: Message[];
   isLoading: boolean;
   onSendMessage: (content: string) => void;
   disabled?: boolean;
+  chatMode?: ChatMode;
+  onChatModeChange?: (mode: ChatMode) => void;
+  currentSteps?: ChatStep[];
 }
+
 const ChatPanel: React.FC<ChatPanelProps> = ({
   messages,
   isLoading,
   onSendMessage,
-  disabled = false
+  disabled = false,
+  chatMode = 'quick',
+  onChatModeChange,
+  currentSteps = []
 }) => {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -96,26 +104,109 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
           </div>)}
 
-        {isLoading && <div className="flex gap-3 animate-slide-up">
+        {/* Step-by-Step progress checklist card */}
+        {isLoading && currentSteps && currentSteps.length > 0 && (
+          <div className="mx-1 my-2 p-4 rounded-xl glass-panel border border-primary/20 bg-primary/5 shadow-lg animate-slide-up space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Cpu className="w-4 h-4 text-primary animate-pulse" />
+              <span className="text-xs font-semibold text-primary uppercase tracking-wider">
+                Chester Code Agente {chatMode === 'architect' ? '(Modo Arquitecto)' : '(Modo Rápido)'}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {currentSteps.map((step) => {
+                const isPending = step.status === 'pending';
+                const isLoadingStep = step.status === 'loading';
+                const isCompleted = step.status === 'completed';
+                const isError = step.status === 'error';
+
+                return (
+                  <div
+                    key={step.id}
+                    className={cn(
+                      "flex items-center gap-2.5 text-xs transition-all duration-300",
+                      isCompleted ? "text-primary font-medium" :
+                      isLoadingStep ? "text-white font-medium animate-pulse" :
+                      isError ? "text-amber-500 font-medium" : "text-muted-foreground"
+                    )}
+                  >
+                    {isCompleted && (
+                      <CheckCircle2 className="w-4 h-4 text-primary shrink-0 animate-scale-in" />
+                    )}
+                    {isLoadingStep && (
+                      <Loader2 className="w-4 h-4 text-primary shrink-0 animate-spin" />
+                    )}
+                    {isPending && (
+                      <Circle className="w-4 h-4 text-muted-foreground shrink-0" />
+                    )}
+                    {isError && (
+                      <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 animate-bounce" />
+                    )}
+                    <span>{step.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {isLoading && (!currentSteps || currentSteps.length === 0) && (
+          <div className="flex gap-3 animate-slide-up">
             <div className="flex-shrink-0 w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
               <Bot className="w-4 h-4 text-primary-foreground" />
             </div>
             <div className="glass-panel rounded-2xl rounded-bl-md px-4 py-3">
               <div className="flex gap-1">
                 <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{
-              animationDelay: '0ms'
-            }} />
+                  animationDelay: '0ms'
+                }} />
                 <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{
-              animationDelay: '150ms'
-            }} />
+                  animationDelay: '150ms'
+                }} />
                 <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{
-              animationDelay: '300ms'
-            }} />
+                  animationDelay: '300ms'
+                }} />
               </div>
             </div>
-          </div>}
+          </div>
+        )}
 
         <div ref={messagesEndRef} />
+      </div>
+
+      {/* Mode Selector Segmented Toggle */}
+      <div className="px-4 py-2 border-t border-border/50 bg-card/20 flex items-center justify-between">
+        <span className="text-xs text-muted-foreground font-medium">Modo de Generación:</span>
+        <div className="flex bg-slate-900 border border-border rounded-lg p-0.5 shadow-inner">
+          <button
+            type="button"
+            onClick={() => onChatModeChange?.('quick')}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1 text-xs rounded-md transition-all duration-200",
+              chatMode === 'quick'
+                ? "bg-primary text-primary-foreground font-medium shadow-md"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            disabled={isLoading}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            Rápido
+          </button>
+          <button
+            type="button"
+            onClick={() => onChatModeChange?.('architect')}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1 text-xs rounded-md transition-all duration-200",
+              chatMode === 'architect'
+                ? "bg-gradient-to-r from-primary via-indigo-500 to-indigo-600 text-primary-foreground font-medium shadow-md"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            disabled={isLoading}
+          >
+            <Cpu className="w-3.5 h-3.5" />
+            Arquitecto
+          </button>
+        </div>
       </div>
 
       {/* Input */}

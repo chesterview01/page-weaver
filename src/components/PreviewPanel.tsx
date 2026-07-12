@@ -19,6 +19,7 @@ import {
 interface PreviewPanelProps {
   project?: ProjectOutput | null;
   onProjectChange?: (project: ProjectOutput) => void;
+  onCompilerError?: (error: { errorText: string; filepath?: string }) => void;
 }
 
 type ViewportSize = 'desktop' | 'tablet' | 'mobile';
@@ -45,6 +46,7 @@ const PreviewPanelInner: React.FC<{
   handleCreateFile: (path: string) => void;
   handleCreateFolder: (path: string) => void;
   handleDeleteFile: (path: string) => void;
+  onCompilerError?: (error: { errorText: string; filepath?: string }) => void;
 }> = ({
   viewMode,
   setViewMode,
@@ -59,8 +61,29 @@ const PreviewPanelInner: React.FC<{
   handleCreateFile,
   handleCreateFolder,
   handleDeleteFile,
+  onCompilerError,
 }) => {
   const { sandpack } = useSandpack();
+
+  const lastErrorRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    if (sandpack.error && sandpack.error.message) {
+      const errorMsg = sandpack.error.message;
+      if (lastErrorRef.current !== errorMsg) {
+        lastErrorRef.current = errorMsg;
+        const filepath = sandpack.error.path || undefined;
+
+        console.log("Sandpack error detected inside PreviewPanelInner:", errorMsg, filepath);
+        onCompilerError?.({
+          errorText: errorMsg,
+          filepath
+        });
+      }
+    } else {
+      lastErrorRef.current = null;
+    }
+  }, [sandpack.error, onCompilerError]);
 
   const handleRefresh = () => {
     if (sandpack) {
@@ -231,7 +254,7 @@ const PreviewPanelInner: React.FC<{
   );
 };
 
-const PreviewPanel: React.FC<PreviewPanelProps> = ({ project: initialProject, onProjectChange }) => {
+const PreviewPanel: React.FC<PreviewPanelProps> = ({ project: initialProject, onProjectChange, onCompilerError }) => {
   const [viewport, setViewport] = useState<ViewportSize>('desktop');
   const [viewMode, setViewMode] = useState<ViewMode>('preview');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -394,6 +417,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ project: initialProject, on
           handleCreateFile={handleCreateFile}
           handleCreateFolder={handleCreateFolder}
           handleDeleteFile={handleDeleteFile}
+          onCompilerError={onCompilerError}
         />
       </SandpackProvider>
     </div>

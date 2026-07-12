@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Message, Version, CodeOutput, ProjectOutput } from '@/types/chat';
+import { Message, Version, CodeOutput, ProjectOutput, ChatMode, ChatStep, ChatStepStatus } from '@/types/chat';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useSettings } from '@/hooks/useSettings';
@@ -122,6 +122,28 @@ export const useChat = () => {
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [lastBuildId, setLastBuildId] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // Agent State
+  const [chatMode, setChatModeState] = useState<ChatMode>(() => {
+    try {
+      const stored = localStorage.getItem('chester_chat_mode');
+      return (stored === 'quick' || stored === 'architect') ? stored : 'quick';
+    } catch {
+      return 'quick';
+    }
+  });
+  const [currentSteps, setCurrentSteps] = useState<ChatStep[]>([]);
+  const [healingRetries, setHealingRetries] = useState(0);
+  const isHealingRef = useRef(false);
+
+  const setChatMode = useCallback((mode: ChatMode) => {
+    setChatModeState(mode);
+    try {
+      localStorage.setItem('chester_chat_mode', mode);
+    } catch (e) {
+      console.error('Error saving chat mode:', e);
+    }
+  }, []);
   
   const { settings } = useSettings();
   const { user, deductCredit, wallet, isAuthenticated } = useAuthContext();
@@ -372,7 +394,7 @@ export const useChat = () => {
     }
   };
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, isHealingCall = false) => {
     if (!isAuthenticated) {
       toast({
         title: "Inicia sesión",
@@ -382,17 +404,26 @@ export const useChat = () => {
       return;
     }
 
-    if (!wallet || wallet.credits < 1) {
-      toast({
-        title: "Sin créditos",
-        description: "No tienes suficientes créditos. Visita la sección de planes.",
-        variant: "destructive",
-      });
-      return;
+    // Only deduct credit and add user message if this is NOT an internal healing call
+    if (!isHealingCall) {
+      if (!wallet || wallet.credits < 1) {
+        toast({
+          title: "Sin créditos",
+          description: "No tienes suficientes créditos. Visita la sección de planes.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const credited = await deductCredit(1, content.substring(0, 50));
+      if (!credited) return;
     }
 
-    const credited = await deductCredit(1, content.substring(0, 50));
-    if (!credited) return;
+    // Reset healing retries if this is a fresh user message
+    if (!isHealingCall) {
+      setHealingRetries(0);
+      isHealingRef.current = false;
+    }
 
     // Ensure we have a valid conversation ID synchronously to avoid race conditions (Error 409)
     let activeConvId = conversationId;
@@ -409,29 +440,64 @@ export const useChat = () => {
       return;
     }
 
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      role: 'user',
-      content,
-      timestamp: new Date(),
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setIsLoading(true);
-
-    // Save user message to database
-    try {
-      await supabase.from('messages').insert({
-        conversation_id: activeConvId,
+    // Add user message to UI and database only for normal calls
+    if (!isHealingCall) {
+      const userMessage: Message = {
+        id: `msg-${Date.now()}`,
         role: 'user',
         content,
-      });
-    } catch (error) {
-      console.error('Error saving user message:', error);
+        timestamp: new Date(),
+      };
+
+      setMessages(prev => [...prev, userMessage]);
+
+      try {
+        await supabase.from('messages').insert({
+          conversation_id: activeConvId,
+          role: 'user',
+          content,
+        });
+      } catch (error) {
+        console.error('Error saving user message:', error);
+      }
     }
 
-    // Construct unifed rich chat history in Spanish including system instructions, current code context, and history
-    let combinedSystemPrompt = `Eres un Ingeniero Frontend Senior y Diseñador UI/UX experto. Tu objetivo es generar código de altísima calidad, moderno y listo para producción.
+    setIsLoading(true);
+
+    // Initialize progress steps checklist
+    if (isHealingCall) {
+      setCurrentSteps([
+        { id: 'healing', label: `⚙️ [Intento ${healingRetries}/3] Detectado error de compilación. Reparando...`, status: 'loading' }
+      ]);
+    } else if (chatMode === 'quick') {
+      setCurrentSteps([
+        { id: 'requirements', label: 'Procesando requerimiento...', status: 'loading' },
+        { id: 'components', label: 'Escribiendo componentes...', status: 'pending' }
+      ]);
+    } else {
+      // architect mode checklist
+      setCurrentSteps([
+        { id: 'requirements', label: 'Analizando requerimientos...', status: 'loading' },
+        { id: 'architecture', label: 'Diseñando arquitectura...', status: 'pending' },
+        { id: 'components', label: 'Escribiendo componentes...', status: 'pending' }
+      ]);
+    }
+
+    const assistantId = `msg-${Date.now()}-ai`;
+
+    // Add placeholder assistant message
+    setMessages(prev => [...prev, {
+      id: assistantId,
+      role: 'assistant',
+      content: isHealingCall ? '🛠️ Aplicando corrección automática para error detectado...' : '',
+      timestamp: new Date(),
+    }]);
+
+    try {
+      let finalAssistantContent = "";
+
+      // Common System Prompt definitions
+      const baseSystemPrompt = `Eres un Ingeniero Frontend Senior y Diseñador UI/UX experto. Tu objetivo es generar código de altísima calidad, moderno y listo para producción.
 
 REGLAS ESTRICTAS DE DISEÑO:
 1. UTILIZA TAILWIND CSS: Prohibido escribir CSS personalizado a menos que sea estrictamente necesario para animaciones complejas. Usa clases de Tailwind para todo el diseño, espaciado, colores y tipografía.
@@ -487,92 +553,175 @@ Justo después de tu narrativa, debes incluir un único bloque de código JSON c
 Asegúrate de que el JSON sea completamente válido, sin errores de escape, y que las comillas dobles internas de los contenidos estén debidamente escapadas.
 `;
 
-    // Include current project context in the system prompt if it exists
-    if (currentProject && currentProject.files.length > 0) {
-      combinedSystemPrompt += `\n\nESTRUCTURA Y ARCHIVOS ACTUALES DEL PROYECTO (Utilízalos como base y modifica o añade archivos sobre este árbol):\n`;
-      currentProject.files.forEach(file => {
-        combinedSystemPrompt += `\n--- Archivo: ${file.path} ---\n${file.content}\n`;
-      });
-    } else if (currentCode && (currentCode.html || currentCode.css || currentCode.js)) {
-      combinedSystemPrompt += `\n\nDATOS DE REFERENCIA (Código actual del proyecto para que continúes o modifiques sobre él):\n\nHTML:\n${currentCode.html}\n\nCSS:\n${currentCode.css}\n\nJS:\n${currentCode.js}\n`;
-    }
+      let projectContextText = "";
+      if (currentProject && currentProject.files.length > 0) {
+        projectContextText += `\n\nESTRUCTURA Y ARCHIVOS ACTUALES DEL PROYECTO (Utilízalos como base y modifica o añade archivos sobre este árbol):\n`;
+        currentProject.files.forEach(file => {
+          projectContextText += `\n--- Archivo: ${file.path} ---\n${file.content}\n`;
+        });
+      } else if (currentCode && (currentCode.html || currentCode.css || currentCode.js)) {
+        projectContextText += `\n\nDATOS DE REFERENCIA (Código actual del proyecto para que continúes o modifiques sobre él):\n\nHTML:\n${currentCode.html}\n\nCSS:\n${currentCode.css}\n\nJS:\n${currentCode.js}\n`;
+      }
 
-    const chatHistory: any[] = [
-      { role: 'system', content: combinedSystemPrompt }
-    ];
+      if (!isHealingCall && chatMode === 'architect') {
+        // --- MULTI-STEP AGENT SEQUENTIAL ARCHITECT MODE ---
 
-    // Include prior chat history (up to last 15 messages for optimal memory and context length)
-    const historyLimit = 15;
-    const recentMessages = messages.slice(-historyLimit);
-    recentMessages.forEach(m => {
-      chatHistory.push({
-        role: m.role,
-        content: m.content
-      });
-    });
+        // Step 1: Request Architecture Plan
+        const planningPromptText = `Eres un Arquitecto de Software Principal experto. Tu tarea única y exclusiva en este paso es diseñar una planificación y arquitectura detallada en español para el requerimiento del usuario:
+"${content}"
 
-    // Append the latest user query
-    chatHistory.push({
-      role: 'user',
-      content: content
-    });
+Por favor, analiza y detalla:
+1. Qué archivos nuevos deben crearse y qué archivos existentes deben modificarse (siguiendo estrictamente las carpetas del PROJECT MANIFESTO).
+2. Cuál es la estrategia para gestionar componentes y responsabilidades.
+3. Qué librerías, iconos de Lucide o dependencias se usarán.
 
-    const assistantId = `msg-${Date.now()}-ai`;
+Escribe una planificación sumamente estructurada y explicativa para el usuario. NO escribas bloques de código todavía. Devuelve solo el texto de planificación en español.`;
 
-    // Add empty placeholder assistant message in the UI state
-    setMessages(prev => [...prev, {
-      id: assistantId,
-      role: 'assistant',
-      content: '',
-      timestamp: new Date(),
-    }]);
+        const planningChatHistory = [
+          { role: 'system', content: baseSystemPrompt + projectContextText },
+          { role: 'user', content: planningPromptText }
+        ];
 
-    try {
-      // Call the secure database RPC 'chat_with_gemini' passing the full chat history
-      const { data, error: rpcError } = await supabase.rpc('chat_with_gemini', {
-        chat_history: chatHistory,
-        model_name: 'gemini-3.1-flash-lite'
-      });
+        // Call the RPC for Plan
+        const planningResponse = await supabase.rpc('chat_with_gemini', {
+          chat_history: planningChatHistory,
+          model_name: 'gemini-3.1-flash-lite'
+        });
 
-      if (rpcError) throw rpcError;
+        if (planningResponse.error) throw planningResponse.error;
 
-      // Safely extract the generated response text from the RPC result JSON
-      let assistantContent = "";
-      if (data) {
-        if (typeof data === 'string') {
-          assistantContent = data;
-        } else if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-          assistantContent = data.candidates[0].content.parts[0].text;
-        } else if (data.text) {
-          assistantContent = data.text;
+        let planText = "";
+        const rData = planningResponse.data;
+        if (rData) {
+          planText = typeof rData === 'string' ? rData : (rData.text || rData.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(rData));
+        }
+
+        if (!planText) {
+          throw new Error("No se pudo generar el plan arquitectónico.");
+        }
+
+        // Complete Step 1 & Move to Step 2
+        setCurrentSteps(prev => prev.map(s => {
+          if (s.id === 'requirements') return { ...s, status: 'completed' };
+          if (s.id === 'architecture') return { ...s, status: 'loading' };
+          return s;
+        }));
+
+        // Display the plan intermediate state briefly, simulate deep thinking
+        setMessages(prev => prev.map(m => m.id === assistantId ? {
+          ...m,
+          content: `### 📋 Plan Arquitectónico Diseñado:\n\n${planText}\n\n*Escribiendo componentes ahora...*`
+        } : m));
+
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // Move to Step 3
+        setCurrentSteps(prev => prev.map(s => {
+          if (s.id === 'architecture') return { ...s, status: 'completed' };
+          if (s.id === 'components') return { ...s, status: 'loading' };
+          return s;
+        }));
+
+        // Step 2: Request the actual implementation/code files based on the plan!
+        const generationPromptText = `Eres el Desarrollador Principal experto. Implementa los archivos de código basándote estrictamente en el plan arquitectónico que hemos aprobado.
+
+REQUERIMIENTO ORIGINAL: "${content}"
+
+PLAN APROBADO:
+${planText}
+
+Genera los archivos correspondientes siguiendo exactamente las instrucciones de formato (PART 1 - NARRATIVE y PART 2 - PROJECT STRUCTURE en bloque JSON de código).`;
+
+        const generationChatHistory = [
+          { role: 'system', content: baseSystemPrompt + projectContextText },
+          { role: 'user', content: generationPromptText }
+        ];
+
+        const codeResponse = await supabase.rpc('chat_with_gemini', {
+          chat_history: generationChatHistory,
+          model_name: 'gemini-3.1-flash-lite'
+        });
+
+        if (codeResponse.error) throw codeResponse.error;
+
+        if (codeResponse.data) {
+          finalAssistantContent = typeof codeResponse.data === 'string' ? codeResponse.data : (codeResponse.data.text || codeResponse.data.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(codeResponse.data));
+        }
+
+        // Add the plan text to the final narrative output so the user sees the CoT reasoning!
+        finalAssistantContent = `### 📋 Arquitectura Planificada:\n${planText}\n\n---\n\n${finalAssistantContent}`;
+
+      } else {
+        // --- QUICK MODE OR AUTO-HEALING SINGLE-CALL FLOW ---
+
+        if (isHealingCall) {
+          // Transition healing step indicator
+          setCurrentSteps(prev => prev.map(s => s.id === 'healing' ? { ...s, status: 'loading' } : s));
         } else {
-          assistantContent = JSON.stringify(data);
+          // Quick mode transitions
+          await new Promise(resolve => setTimeout(resolve, 600));
+          setCurrentSteps(prev => prev.map(s => {
+            if (s.id === 'requirements') return { ...s, status: 'completed' };
+            if (s.id === 'components') return { ...s, status: 'loading' };
+            return s;
+          }));
+        }
+
+        const chatHistory: any[] = [
+          { role: 'system', content: baseSystemPrompt + projectContextText }
+        ];
+
+        // For healing calls we send a minimized context, for normal calls we append historical messages
+        if (!isHealingCall) {
+          const historyLimit = 15;
+          const recentMessages = messages.slice(-historyLimit);
+          recentMessages.forEach(m => {
+            chatHistory.push({
+              role: m.role,
+              content: m.content
+            });
+          });
+        }
+
+        chatHistory.push({
+          role: 'user',
+          content: content
+        });
+
+        const codeResponse = await supabase.rpc('chat_with_gemini', {
+          chat_history: chatHistory,
+          model_name: 'gemini-3.1-flash-lite'
+        });
+
+        if (codeResponse.error) throw codeResponse.error;
+
+        if (codeResponse.data) {
+          finalAssistantContent = typeof codeResponse.data === 'string' ? codeResponse.data : (codeResponse.data.text || codeResponse.data.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(codeResponse.data));
         }
       }
 
-      if (!assistantContent) {
+      if (!finalAssistantContent) {
         throw new Error("No se recibió respuesta de la IA.");
       }
 
       setIsLoading(false);
 
       // Parse narrative text and structure/code outputs
-      const parsedProject = parseProjectFromResponse(assistantContent);
+      const parsedProject = parseProjectFromResponse(finalAssistantContent);
       let mergedProject: ProjectOutput | null = null;
       let finalCode: CodeOutput | null = null;
 
       if (parsedProject) {
-        // Merge with existing project files so that unmodified files are not wiped out!
         mergedProject = mergeProjectFiles(currentProject, parsedProject);
         finalCode = projectToCodeOutput(mergedProject);
       } else {
-        const parsedCode = parseCodeFromResponse(assistantContent);
+        const parsedCode = parseCodeFromResponse(finalAssistantContent);
         if (parsedCode) {
           finalCode = parsedCode;
         }
       }
 
-      const narrativeContent = extractNarrative(assistantContent);
+      const narrativeContent = extractNarrative(finalAssistantContent);
 
       // Update UI with the final result
       setMessages(prev =>
@@ -583,6 +732,17 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
           projectOutput: mergedProject || undefined
         } : m)
       );
+
+      // Update steps to completed
+      setCurrentSteps(prev => prev.map(s => {
+        if (s.id === 'components' || s.id === 'healing') return { ...s, status: 'completed' };
+        return s;
+      }));
+
+      // Hide steps after 3 seconds
+      setTimeout(() => {
+        setCurrentSteps([]);
+      }, 3000);
 
       if (finalCode || mergedProject) {
         const resolvedCode = finalCode || { html: '', css: '', js: '' };
@@ -607,7 +767,7 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
             .insert({
               conversation_id: activeConvId,
               role: 'assistant',
-              content: assistantContent,
+              content: finalAssistantContent,
             })
             .select()
             .single();
@@ -626,7 +786,6 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
             if (build) {
               setLastBuildId(build.id);
 
-              // Generate and save thumbnail in background
               generateThumbnail(resolvedCode.html, resolvedCode.css, resolvedCode.js).then(async (thumbnailUrl) => {
                 if (thumbnailUrl) {
                   await supabase
@@ -637,13 +796,13 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
               }).catch(console.error);
 
               toast({
-                title: "Build guardado",
-                description: "Tu código ha sido guardado automáticamente.",
+                title: isHealingCall ? "Auto-corrección completada" : "Build guardado",
+                description: isHealingCall ? "Se corrigieron los errores de compilación." : "Tu código ha sido guardado automáticamente.",
               });
             }
 
             await supabase.from('audit_logs').insert({
-              action: 'build_created',
+              action: isHealingCall ? 'build_auto_healed' : 'build_created',
               entity_type: 'build',
               entity_id: build?.id,
               details: { label: newVersion.label, project_id: currentProjectId },
@@ -658,7 +817,7 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
           await supabase.from('messages').insert({
             conversation_id: activeConvId,
             role: 'assistant',
-            content: assistantContent,
+            content: finalAssistantContent,
           });
         } catch (error) {
           console.error('Error saving assistant message:', error);
@@ -667,15 +826,19 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
 
     } catch (error: any) {
       setIsLoading(false);
+      setCurrentSteps(prev => prev.map(s => ({ ...s, status: 'error' })));
+      setTimeout(() => {
+        setCurrentSteps([]);
+      }, 5000);
+
       toast({
         title: "Error de IA",
         description: error.message || "Error al conectar con la base de datos.",
         variant: "destructive",
       });
-      // Remove placeholder message on failure
       setMessages(prev => prev.filter(m => m.id !== assistantId));
     }
-  }, [conversationId, messages, currentCode, currentProject, currentProjectId, isAuthenticated, wallet, deductCredit, createNewConversation]);
+  }, [conversationId, messages, currentCode, currentProject, currentProjectId, isAuthenticated, wallet, deductCredit, createNewConversation, chatMode, healingRetries]);
 
   const selectVersion = useCallback((versionId: string) => {
     const version = versions.find(v => v.id === versionId);
@@ -773,6 +936,43 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
     });
   }, [clearState, user, createNewConversation]);
 
+  // Handle Sandpack compilation/bundling error with Auto-healing (Fase 3)
+  const handleCompilerError = useCallback(async (error: { errorText: string; filepath?: string }) => {
+    // If already loading or healing, or we've hit the limit of 3 retries, don't trigger again
+    if (isLoading || isHealingRef.current || healingRetries >= 3) {
+      if (healingRetries >= 3) {
+        toast({
+          title: "Límite de auto-correcciones superado",
+          description: "Chester Code intentó corregir el error 3 veces sin éxito. Por favor, revisa el código manualmente.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    isHealingRef.current = true;
+    const nextRetries = healingRetries + 1;
+    setHealingRetries(nextRetries);
+
+    toast({
+      title: `Auto-corrección activa (Intento ${nextRetries}/3)`,
+      description: `Detectado error de compilación. Chester está reparando...`,
+    });
+
+    const errorDetails = `Error: ${error.errorText} ${error.filepath ? `en el archivo: ${error.filepath}` : ''}`;
+
+    const healingPrompt = `¡ALERTA! El código generado anteriormente causó el siguiente error de compilación/ejecución en el bundler de Sandpack:
+\`\`\`
+${errorDetails}
+\`\`\`
+
+Por favor, corrige este error de inmediato. Analiza qué componente, importación o etiqueta causó la falla y genera un parche corrector. Devuelve todos los archivos modificados siguiendo el formato JSON exacto (PART 1 - NARRATIVE y PART 2 - PROJECT STRUCTURE) para parchar el código y solucionar el error.`;
+
+    // Trigger sequential healing call passing isHealingCall = true
+    await sendMessage(healingPrompt, true);
+    isHealingRef.current = false;
+  }, [isLoading, healingRetries, sendMessage]);
+
   return {
     messages,
     versions,
@@ -788,5 +988,9 @@ Asegúrate de que el JSON sea completamente válido, sin errores de escape, y qu
     currentProjectId,
     clearChat,
     conversationId,
+    chatMode,
+    setChatMode,
+    currentSteps,
+    onCompilerError: handleCompilerError,
   };
 };

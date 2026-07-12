@@ -30,6 +30,10 @@ const Index = () => {
     lastBuildId,
     currentProjectId,
     clearChat,
+    chatMode,
+    setChatMode,
+    currentSteps,
+    onCompilerError,
   } = useChat();
 
   const { settings } = useSettings();
@@ -91,6 +95,9 @@ const Index = () => {
             isLoading={isLoading}
             onSendMessage={handleSendMessage}
             disabled={!isAuthenticated}
+            chatMode={chatMode}
+            onChatModeChange={setChatMode}
+            currentSteps={currentSteps}
           />
         </div>
 
@@ -119,9 +126,9 @@ const Index = () => {
           </div>
           <div className="flex-1 h-full min-h-0 flex flex-col">
             <PreviewPanel 
-              code={currentCode} 
               project={currentProject} 
               onProjectChange={updateProject}
+              onCompilerError={onCompilerError}
             />
           </div>
         </div>
