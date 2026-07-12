@@ -14,6 +14,7 @@ import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 import AuthCallback from "./pages/AuthCallback";
 import Login from "./pages/Login";
+import PreviewFullscreen from "./pages/PreviewFullscreen";
 
 const queryClient = new QueryClient();
 
@@ -84,6 +85,7 @@ const AppRoutes = () => (
         <Admin />
       </ProtectedRoute>
     } />
+    <Route path="/preview-fullscreen" element={<PreviewFullscreen />} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

@@ -162,14 +162,14 @@ const PreviewPanelInner: React.FC<{
 
       {/* Content Area */}
       {viewMode === 'preview' ? (
-        <div className="flex-1 overflow-auto bg-muted/30 p-4">
+        <div className="flex-1 min-h-0 bg-muted/30 p-4 flex flex-col">
           <div
             className={cn(
-              'mx-auto h-full transition-all duration-300 rounded-lg overflow-hidden shadow-card bg-slate-950',
+              'mx-auto h-full w-full transition-all duration-300 rounded-lg overflow-hidden shadow-card bg-slate-950 flex flex-col',
               viewportClasses[viewport]
             )}
           >
-            <div className="w-full h-full relative bg-slate-900">
+            <div className="w-full h-full flex-1 relative bg-slate-900">
               <SandpackPreview
                 showNavigator={false}
                 showRefreshButton={false}
