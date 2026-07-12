@@ -8,7 +8,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $function$
 DECLARE
   v_api_key text;
   v_url text;
@@ -74,22 +74,25 @@ BEGIN
     'systemInstruction', v_system_instruction
   )::text;
 
-  -- 5. Perform the HTTP request with a 60-second timeout (60000 ms) using extensions.http
+  -- 5. Set the HTTP request timeout to 60 seconds (60000 ms) inside transaction config
+  PERFORM set_config('http.timeout_msec', '60000', true);
+
+  -- 6. Perform the HTTP request using extensions.http
   SELECT * INTO v_response FROM extensions.http((
     'POST',
     v_url,
     ARRAY[extensions.http_header('Content-Type', 'application/json')],
     'application/json',
     v_request_body
-  )::extensions.http_request, 60000);
+  )::extensions.http_request);
 
-  -- 6. Check response status and return content
+  -- 7. Check response status and return content
   IF v_response.status >= 200 AND v_response.status < 300 THEN
     RETURN v_response.content::jsonb;
   ELSE
     RAISE EXCEPTION 'Error al conectar con la API de Gemini (Código %): %', v_response.status, v_response.content;
   END IF;
 END;
-$$;
+$function$;
 
 GRANT EXECUTE ON FUNCTION public.chat_with_gemini(jsonb, text) TO authenticated;
