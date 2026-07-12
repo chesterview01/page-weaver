@@ -75,6 +75,67 @@ export const useAuth = () => {
     }
   }, [safeSetState]);
 
+  const saveGitHubToken = useCallback(async (userId: string, providerToken: string, fallbackUsername?: string) => {
+    const isMock = typeof window !== 'undefined' && (localStorage.getItem("mock_auth") === "true" || window.location.search.includes("mock_auth=true"));
+    if (isMock) return;
+
+    try {
+      let githubUsername = fallbackUsername || '';
+
+      // Fetch exact username if not provided in metadata
+      if (!githubUsername) {
+        const res = await fetch('https://api.github.com/user', {
+          headers: {
+            'Authorization': `Bearer ${providerToken}`,
+            'User-Agent': 'Chester-Code-IA'
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          githubUsername = data.login;
+        }
+      }
+
+      if (!githubUsername) {
+        githubUsername = 'github-user';
+      }
+
+      const { data: existing } = await supabase
+        .from('github_connections')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from('github_connections')
+          .update({
+            personal_access_token: providerToken,
+            github_username: githubUsername,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId);
+      } else {
+        await supabase
+          .from('github_connections')
+          .insert({
+            user_id: userId,
+            personal_access_token: providerToken,
+            github_username: githubUsername,
+          });
+      }
+
+      await supabase.from('audit_logs').insert({
+        action: 'github_token_sync',
+        entity_type: 'github_connection',
+        entity_id: userId,
+        details: { github_username: githubUsername },
+      });
+    } catch (error) {
+      console.error('Error saving GitHub token:', error);
+    }
+  }, []);
+
   useEffect(() => {
     const isMock = typeof window !== 'undefined' && (localStorage.getItem("mock_auth") === "true" || window.location.search.includes("mock_auth=true"));
     if (isMock) {
@@ -90,6 +151,11 @@ export const useAuth = () => {
         });
         
         if (session?.user) {
+          if (session.provider_token) {
+            const username = session.user.user_metadata?.preferred_username || session.user.user_metadata?.user_name;
+            saveGitHubToken(session.user.id, session.provider_token, username);
+          }
+
           setTimeout(() => {
             if (mountedRef.current) {
               loadUserData(session.user.id);
@@ -112,6 +178,10 @@ export const useAuth = () => {
         user: session?.user ?? null,
       });
       if (session?.user) {
+        if (session.provider_token) {
+          const username = session.user.user_metadata?.preferred_username || session.user.user_metadata?.user_name;
+          saveGitHubToken(session.user.id, session.provider_token, username);
+        }
         loadUserData(session.user.id);
       }
       safeSetState({ isLoading: false });
@@ -121,7 +191,7 @@ export const useAuth = () => {
       mountedRef.current = false;
       subscription.unsubscribe();
     };
-  }, [loadUserData, safeSetState]);
+  }, [loadUserData, safeSetState, saveGitHubToken]);
 
   const signUp = useCallback(async (email: string, password: string, displayName?: string) => {
     safeSetState({ isLoading: true });

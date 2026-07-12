@@ -131,12 +131,12 @@ export const useGitHubConnection = () => {
     setIsConnecting(true);
     
     try {
-      // Use Supabase's native OAuth flow - no edge functions needed
+      // Use Supabase's native OAuth flow with requested write permissions
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          redirectTo: 'https://chestercodeia.vercel.app/auth/callback',
-          scopes: 'repo user',
+          redirectTo: `${window.location.origin}/auth/callback`,
+          scopes: 'repo workflow user',
         },
       });
 

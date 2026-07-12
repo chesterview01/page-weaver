@@ -9,8 +9,8 @@ export const usePreviewWindow = () => {
     if (previewWindowRef.current && !previewWindowRef.current.closed) {
       previewWindowRef.current.focus();
     } else {
-      // Open new window using absolute origin and query parameters to avoid 404s
-      const targetUrl = `${window.location.origin}/app?preview-fullscreen=true`;
+      // Open new window pointing exclusively to the unified /preview-fullscreen route
+      const targetUrl = `${window.location.origin}/preview-fullscreen`;
       previewWindowRef.current = window.open(targetUrl, '_blank', 'width=1200,height=800');
     }
   }, []);
