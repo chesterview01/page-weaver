@@ -352,15 +352,27 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ project: initialProject, on
     const filesObj: Record<string, string> = {};
     project.files.forEach(file => {
       const path = file.path.startsWith('/') ? file.path : `/${file.path}`;
-      filesObj[path] = file.content;
+      let content = file.content;
+
+      // Force Tailwind CSS CDN injection for absolute visual parity across previews
+      if (path.endsWith('.html') || path === '/index.html' || path === '/public/index.html') {
+        if (!content.includes('cdn.tailwindcss.com')) {
+          content = content.replace(
+            '</head>',
+            '  <script src="https://cdn.tailwindcss.com"></script>\n  <script>\n    tailwind.config = {\n      darkMode: "class",\n      theme: { extend: {} }\n    }\n  </script>\n</head>'
+          );
+        }
+      }
+
+      filesObj[path] = content;
 
       // Map index.html to /public/index.html for Sandpack react-ts (create-react-app) compatibility
       if (path === '/index.html') {
-        filesObj['/public/index.html'] = file.content;
+        filesObj['/public/index.html'] = content;
       }
       // Map main.tsx to index.tsx for Sandpack react-ts (create-react-app) compatibility
       if (path === '/src/main.tsx') {
-        filesObj['/src/index.tsx'] = file.content;
+        filesObj['/src/index.tsx'] = content;
       }
     });
     return filesObj;

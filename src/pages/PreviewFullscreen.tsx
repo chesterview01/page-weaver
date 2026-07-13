@@ -8,10 +8,14 @@ import { projectTemplate } from '@/constants/projectTemplate';
 
 const PreviewFullscreen: React.FC = () => {
   const [project, setProject] = useState<ProjectOutput | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Helper function to load project from localStorage
-  const loadProjectFromStorage = () => {
+  const loadProjectFromStorage = (isInitial = false) => {
     try {
+      if (isInitial) {
+        setIsLoading(true);
+      }
       const storedProject = localStorage.getItem('chester_current_project');
       if (storedProject) {
         const parsed = JSON.parse(storedProject) as ProjectOutput;
@@ -49,47 +53,67 @@ const PreviewFullscreen: React.FC = () => {
     } catch (error) {
       console.error('Error loading project from localStorage:', error);
       setProject(projectTemplate);
+    } finally {
+      if (isInitial) {
+        setIsLoading(false);
+      }
     }
   };
 
   // Initial load
   useEffect(() => {
-    loadProjectFromStorage();
+    // Small delay on initial load to ensure storage sync is completed
+    const timer = setTimeout(() => {
+      loadProjectFromStorage(true);
+    }, 500);
 
     // Listen for storage changes across tabs/windows (real-time sync)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'chester_current_project' || e.key === 'chester_current_code') {
-        loadProjectFromStorage();
+        loadProjectFromStorage(false);
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
-  // Convert files for Sandpack
+  // Convert files for Sandpack with guaranteed styling CDN injection
   const sandpackFiles = useMemo(() => {
     if (!project) return {};
     const filesObj: Record<string, string> = {};
     project.files.forEach(file => {
       const path = file.path.startsWith('/') ? file.path : `/${file.path}`;
-      filesObj[path] = file.content;
+      let content = file.content;
+
+      // Force Tailwind CSS CDN injection for absolute visual parity across previews
+      if (path.endsWith('.html') || path === '/index.html' || path === '/public/index.html') {
+        if (!content.includes('cdn.tailwindcss.com')) {
+          content = content.replace(
+            '</head>',
+            '  <script src="https://cdn.tailwindcss.com"></script>\n  <script>\n    tailwind.config = {\n      darkMode: "class",\n      theme: { extend: {} }\n    }\n  </script>\n</head>'
+          );
+        }
+      }
+
+      filesObj[path] = content;
 
       // Map index.html to /public/index.html for Sandpack react-ts (create-react-app) compatibility
       if (path === '/index.html') {
-        filesObj['/public/index.html'] = file.content;
+        filesObj['/public/index.html'] = content;
       }
       // Map main.tsx to index.tsx for Sandpack react-ts (create-react-app) compatibility
       if (path === '/src/main.tsx') {
-        filesObj['/src/index.tsx'] = file.content;
+        filesObj['/src/index.tsx'] = content;
       }
     });
     return filesObj;
   }, [project]);
 
-  if (!project) {
+  if (isLoading || !project) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-white font-sans">
         <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mb-4" />
